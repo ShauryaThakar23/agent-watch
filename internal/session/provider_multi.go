@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package session
 
@@ -12,7 +12,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/tarikguney/agent-watch/internal/tmux"
+	"github.com/ShauryaThakar23/agent-watch/internal/tmux"
 )
 
 // multiProvider combines multiple providers into a single view.
@@ -33,9 +33,9 @@ func NewMultiProvider(providers ...Provider) Provider {
 		}
 	}
 	return &multiProvider{
-		providers:     filtered,
-		pathProvider:  make(map[string]Provider),
-		pidProvider:   make(map[int]Provider),
+		providers:    filtered,
+		pathProvider: make(map[string]Provider),
+		pidProvider:  make(map[int]Provider),
 	}
 }
 

@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	ntdll                     = syscall.NewLazyDLL("ntdll.dll")
-	kernel32                  = syscall.NewLazyDLL("kernel32.dll")
+	ntdll                         = syscall.NewLazyDLL("ntdll.dll")
+	kernel32                      = syscall.NewLazyDLL("kernel32.dll")
 	procNtQueryInformationProcess = ntdll.NewProc("NtQueryInformationProcess")
-	procReadProcessMemory     = kernel32.NewProc("ReadProcessMemory")
+	procReadProcessMemory         = kernel32.NewProc("ReadProcessMemory")
 )
 
 const (

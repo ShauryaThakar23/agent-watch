@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package ui
 
@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ShauryaThakar23/agent-watch/internal/notify"
+	"github.com/ShauryaThakar23/agent-watch/internal/session"
+	"github.com/ShauryaThakar23/agent-watch/internal/tmux"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/tarikguney/agent-watch/internal/notify"
-	"github.com/tarikguney/agent-watch/internal/session"
-	"github.com/tarikguney/agent-watch/internal/tmux"
 )
 
 var (
@@ -37,9 +37,10 @@ var (
 	helpKeyStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6CB6FF")) // Soft blue for keys
 	helpTextStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))                // Gray for descriptions
 	providerStyles = map[string]lipgloss.Style{
-		"CLAUDE":  lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8800")).Bold(true),
-		"COPILOT": lipgloss.NewStyle().Foreground(lipgloss.Color("#6CB6FF")).Bold(true),
-		"UNKNOWN": lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+		"CLAUDE":   lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8800")).Bold(true),
+		"COPILOT":  lipgloss.NewStyle().Foreground(lipgloss.Color("#6CB6FF")).Bold(true),
+		"SYMPHONY": lipgloss.NewStyle().Foreground(lipgloss.Color("#D4A0FF")).Bold(true),
+		"UNKNOWN":  lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
 	}
 
 	statusStyles = map[session.Status]lipgloss.Style{
@@ -320,6 +321,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.scrollToCursor()
 
 	case tickMsg:
+		if m.scanner.DiscoverOnTick() {
+			_ = m.scanner.Discover()
+		}
 		m.scanner.LoadAll()
 		allSessions := m.scanner.Sessions()
 		m.processNotifications(notificationSessionCandidates(allSessions))
@@ -1369,6 +1373,9 @@ func providerLabel(s session.State) string {
 	if strings.EqualFold(s.Provider, "copilot") {
 		return "COPILOT"
 	}
+	if strings.EqualFold(s.Provider, "symphony") {
+		return "SYMPHONY"
+	}
 	lowerPath := strings.ToLower(s.FilePath)
 	if strings.Contains(lowerPath, string(filepath.Separator)+".copilot"+string(filepath.Separator)+"session-state"+string(filepath.Separator)) ||
 		strings.Contains(lowerPath, "/.copilot/session-state/") ||
@@ -1387,8 +1394,10 @@ func providerRank(s session.State) int {
 		return 0
 	case "COPILOT":
 		return 1
-	default:
+	case "SYMPHONY":
 		return 2
+	default:
+		return 3
 	}
 }
 

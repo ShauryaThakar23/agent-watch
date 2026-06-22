@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarikguney/agent-watch/internal/tmux"
+	"github.com/ShauryaThakar23/agent-watch/internal/tmux"
 )
 
 type fakeProvider struct {

@@ -1,4 +1,4 @@
-module github.com/tarikguney/agent-watch
+module github.com/ShauryaThakar23/agent-watch
 
 go 1.26.1
 

@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package session
 
@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/tarikguney/agent-watch/internal/tmux"
+	"github.com/ShauryaThakar23/agent-watch/internal/tmux"
 )
 
 // Scanner orchestrates provider-specific session discovery and state tracking.
@@ -50,6 +50,22 @@ type sessionsDirsProvider interface {
 	SessionsDirs() []string
 }
 
+type refreshExistingProvider interface {
+	RefreshExistingOnTick() bool
+}
+
+type discoverOnTickProvider interface {
+	DiscoverOnTick() bool
+}
+
+type replaceDiscoveredProvider interface {
+	ReplaceDiscoveredSessions() bool
+}
+
+type includeInactiveProvider interface {
+	IncludeInactiveSessions() bool
+}
+
 // SessionsDirs returns all session roots for the active provider.
 func (s *Scanner) SessionsDirs() []string {
 	if provider, ok := s.provider.(sessionsDirsProvider); ok {
@@ -70,6 +86,17 @@ func (s *Scanner) Discover() error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if provider, ok := s.provider.(replaceDiscoveredProvider); ok && provider.ReplaceDiscoveredSessions() {
+		discovered := make(map[string]struct{}, len(paths))
+		for _, path := range paths {
+			discovered[filepath.Clean(path)] = struct{}{}
+		}
+		for path := range s.sessions {
+			if _, ok := discovered[filepath.Clean(path)]; !ok {
+				delete(s.sessions, path)
+			}
+		}
+	}
 	for _, path := range paths {
 		if _, exists := s.sessions[path]; !exists {
 			s.sessions[path] = &State{FilePath: path}
@@ -145,9 +172,14 @@ func (s *Scanner) Sessions() []State {
 // LoadAll loads sessions that haven't been initialized yet.
 func (s *Scanner) LoadAll() {
 	s.mu.RLock()
+	refreshExisting := false
+	if provider, ok := s.provider.(refreshExistingProvider); ok {
+		refreshExisting = provider.RefreshExistingOnTick()
+	}
+
 	paths := make([]string, 0)
 	for path, state := range s.sessions {
-		if state.FileOffset == 0 {
+		if refreshExisting || state.FileOffset == 0 {
 			paths = append(paths, path)
 		}
 	}
@@ -156,6 +188,16 @@ func (s *Scanner) LoadAll() {
 	for _, path := range paths {
 		_ = s.LoadSession(path)
 	}
+}
+
+// DiscoverOnTick reports whether the provider needs periodic discovery even
+// when fsnotify has not announced a new transcript file. Symphony rows come
+// from runtime-state.json, not per-session JSONL create events, so they use this.
+func (s *Scanner) DiscoverOnTick() bool {
+	if provider, ok := s.provider.(discoverOnTickProvider); ok {
+		return provider.DiscoverOnTick()
+	}
+	return false
 }
 
 // MatchProcesses associates running processes with sessions.
@@ -180,9 +222,14 @@ func (s *Scanner) RunningSessions() []State {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	includeInactive := false
+	if provider, ok := s.provider.(includeInactiveProvider); ok {
+		includeInactive = provider.IncludeInactiveSessions()
+	}
+
 	result := make([]State, 0)
 	for _, state := range s.sessions {
-		if state.PID > 0 {
+		if state.PID > 0 || includeInactive {
 			result = append(result, *state)
 		}
 	}

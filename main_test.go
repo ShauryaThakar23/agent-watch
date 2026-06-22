@@ -15,6 +15,7 @@ func TestNormalizeProvider(t *testing.T) {
 		{name: "all", input: "all", want: "all"},
 		{name: "claude", input: "claude", want: "claude"},
 		{name: "copilot", input: "copilot", want: "copilot"},
+		{name: "symphony", input: "symphony", want: "symphony"},
 		{name: "trim and normalize", input: "  CoPiLoT  ", want: "copilot"},
 		{name: "invalid", input: "other", wantError: true},
 	}
@@ -72,6 +73,14 @@ func TestNewScannerSelectsProvider(t *testing.T) {
 	if copilotScanner.ClaudeDir() != "C:\\tmp\\copilot" {
 		t.Fatalf("expected copilot dir, got %q", copilotScanner.ClaudeDir())
 	}
+
+	symphonyScanner, err := newScanner("symphony", "C:\\tmp\\claude", "C:\\tmp\\copilot", "C:\\tmp\\state.json", "C:\\tmp\\sessions.log", "C:\\tmp\\workspaces")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if symphonyScanner.ProviderID() != "symphony" {
+		t.Fatalf("expected symphony provider, got %q", symphonyScanner.ProviderID())
+	}
 }
 
 func TestNewScannerInvalidProvider(t *testing.T) {
@@ -81,7 +90,7 @@ func TestNewScannerInvalidProvider(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected error for invalid provider")
 	}
-	want := `invalid --provider "unknown" (must be one of: all, claude, copilot)`
+	want := `invalid --provider "unknown" (must be one of: all, claude, copilot, symphony)`
 	if err.Error() != want {
 		t.Fatalf("expected %q, got %q", want, err.Error())
 	}

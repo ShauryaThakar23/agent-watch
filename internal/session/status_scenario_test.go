@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarikguney/agent-watch/internal/parser"
+	"github.com/ShauryaThakar23/agent-watch/internal/parser"
 )
 
 func TestDeriveStatus_AllScenarios(t *testing.T) {

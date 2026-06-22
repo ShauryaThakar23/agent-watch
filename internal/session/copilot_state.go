@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package session
 
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarikguney/agent-watch/internal/parser"
+	"github.com/ShauryaThakar23/agent-watch/internal/parser"
 )
 
 func applyCopilotEvent(state *State, event parser.CopilotEvent, processRunning bool, now time.Time) {

@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package main
 
@@ -15,13 +15,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ShauryaThakar23/agent-watch/internal/notify"
+	"github.com/ShauryaThakar23/agent-watch/internal/session"
+	"github.com/ShauryaThakar23/agent-watch/internal/tmux"
+	"github.com/ShauryaThakar23/agent-watch/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/termenv"
 	"github.com/spf13/cobra"
-	"github.com/tarikguney/agent-watch/internal/notify"
-	"github.com/tarikguney/agent-watch/internal/session"
-	"github.com/tarikguney/agent-watch/internal/tmux"
-	"github.com/tarikguney/agent-watch/internal/ui"
 )
 
 var (
@@ -35,6 +35,9 @@ func main() {
 	var provider string
 	var claudeDir string
 	var copilotDir string
+	var symphonyState string
+	var symphonySessions string
+	var symphonyWorkspaces string
 	var compact bool
 	var windowsNotifications bool
 	var testWindowsNotification bool
@@ -42,23 +45,27 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:     "agent-watch",
-		Short:   "Monitor Claude Code sessions in real time",
+		Short:   "Monitor Claude Code, GitHub Copilot CLI, and Symphony sessions in real time",
 		Version: fmt.Sprintf("%s (commit: %s, built: %s)", version, commit, date),
-		Long: `A zero-setup CLI dashboard for monitoring Claude Code agents.
-Discovers sessions automatically from ~/.claude/projects/.
+		Long: `A zero-setup CLI dashboard for monitoring Claude Code, GitHub Copilot CLI,
+and Symphony agents. Discovers sessions automatically from local transcript
+and runtime-state files.
 
 On Windows, agent-watch can send native notifications when sessions
 complete or error.
 
-Source: https://github.com/tarikguney/agent-watch`,
+Source: https://github.com/ShauryaThakar23/agent-watch`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printSessions {
-				return runPrintSessions(provider, claudeDir, copilotDir)
+				return runPrintSessions(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces)
 			}
 			return run(
 				provider,
 				claudeDir,
 				copilotDir,
+				symphonyState,
+				symphonySessions,
+				symphonyWorkspaces,
 				refresh,
 				compact,
 				windowsNotifications,
@@ -68,9 +75,12 @@ Source: https://github.com/tarikguney/agent-watch`,
 	}
 
 	rootCmd.Flags().DurationVar(&refresh, "refresh", 1*time.Second, "Dashboard refresh interval")
-	rootCmd.Flags().StringVar(&provider, "provider", "all", "Session provider (all|claude|copilot)")
+	rootCmd.Flags().StringVar(&provider, "provider", "all", "Session provider (all|claude|copilot|symphony)")
 	rootCmd.Flags().StringVar(&claudeDir, "claude-dir", defaultClaudeDir(), "Path to Claude config directory")
 	rootCmd.Flags().StringVar(&copilotDir, "copilot-dir", defaultCopilotDir(), "Path to Copilot config directory")
+	rootCmd.Flags().StringVar(&symphonyState, "symphony-state", defaultSymphonyStatePath(), "Path to Symphony runtime-state.json")
+	rootCmd.Flags().StringVar(&symphonySessions, "symphony-sessions", "", "Path to Symphony symphony-sessions.log")
+	rootCmd.Flags().StringVar(&symphonyWorkspaces, "symphony-workspaces", defaultSymphonyWorkspacesDir(), "Path to Symphony workspaces root")
 	rootCmd.Flags().BoolVar(&compact, "compact", false, "Compact mode for narrow terminals")
 	rootCmd.Flags().BoolVar(
 		&windowsNotifications,
@@ -97,7 +107,7 @@ Source: https://github.com/tarikguney/agent-watch`,
 }
 
 func run(
-	provider, claudeDir, copilotDir string,
+	provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces string,
 	refresh time.Duration,
 	compact bool,
 	windowsNotifications bool,
@@ -117,7 +127,7 @@ func run(
 		return fmt.Errorf("--windows-notifications is only supported on Windows")
 	}
 
-	scanner, err := newScanner(provider, claudeDir, copilotDir)
+	scanner, err := newScanner(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces)
 	if err != nil {
 		return err
 	}
@@ -178,8 +188,8 @@ func runWindowsNotificationTest(notifier notify.Notifier) error {
 
 // runPrintSessions discovers sessions, resolves their panes, and prints a debug
 // table to stdout, then exits. It performs no send-keys and starts no UI.
-func runPrintSessions(provider, claudeDir, copilotDir string) error {
-	scanner, err := newScanner(provider, claudeDir, copilotDir)
+func runPrintSessions(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces string) error {
+	scanner, err := newScanner(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces)
 	if err != nil {
 		return err
 	}
@@ -214,10 +224,22 @@ func truncateStr(s string, n int) string {
 	return s[:n-1] + "…"
 }
 
-func newScanner(provider, claudeDir, copilotDir string) (*session.Scanner, error) {
+func newScanner(provider, claudeDir, copilotDir string, symphonyArgs ...string) (*session.Scanner, error) {
 	normalizedProvider, err := normalizeProvider(provider)
 	if err != nil {
 		return nil, err
+	}
+	symphonyState := defaultSymphonyStatePath()
+	symphonySessions := ""
+	symphonyWorkspaces := defaultSymphonyWorkspacesDir()
+	if len(symphonyArgs) > 0 && symphonyArgs[0] != "" {
+		symphonyState = symphonyArgs[0]
+	}
+	if len(symphonyArgs) > 1 {
+		symphonySessions = symphonyArgs[1]
+	}
+	if len(symphonyArgs) > 2 && symphonyArgs[2] != "" {
+		symphonyWorkspaces = symphonyArgs[2]
 	}
 	switch normalizedProvider {
 	case "all":
@@ -229,8 +251,15 @@ func newScanner(provider, claudeDir, copilotDir string) (*session.Scanner, error
 		return session.NewScannerWithProvider(session.NewClaudeProvider(claudeDir)), nil
 	case "copilot":
 		return session.NewScannerWithProvider(session.NewCopilotProvider(copilotDir)), nil
+	case "symphony":
+		return session.NewScannerWithProvider(session.NewSymphonyProvider(session.SymphonyConfig{
+			StatePath:      symphonyState,
+			SessionsPath:   symphonySessions,
+			WorkspacesRoot: symphonyWorkspaces,
+			CopilotDir:     copilotDir,
+		})), nil
 	default:
-		return nil, fmt.Errorf("invalid --provider %q (must be one of: all, claude, copilot)", provider)
+		return nil, fmt.Errorf("invalid --provider %q (must be one of: all, claude, copilot, symphony)", provider)
 	}
 }
 
@@ -242,8 +271,10 @@ func normalizeProvider(provider string) (string, error) {
 		return "claude", nil
 	case "copilot":
 		return "copilot", nil
+	case "symphony":
+		return "symphony", nil
 	default:
-		return "", fmt.Errorf("invalid --provider %q (must be one of: all, claude, copilot)", provider)
+		return "", fmt.Errorf("invalid --provider %q (must be one of: all, claude, copilot, symphony)", provider)
 	}
 }
 
@@ -345,4 +376,20 @@ func defaultCopilotDir() string {
 	}
 
 	return filepath.Join(home, ".copilot")
+}
+
+func defaultSymphonyStatePath() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join("~", ".symphony", "runtime-state.json")
+	}
+	return filepath.Join(home, ".symphony", "runtime-state.json")
+}
+
+func defaultSymphonyWorkspacesDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join("~", ".symphony", "workspaces")
+	}
+	return filepath.Join(home, ".symphony", "workspaces")
 }

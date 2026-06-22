@@ -1,6 +1,6 @@
 # agent-watch
 
-A zero-setup CLI dashboard for monitoring Claude Code and GitHub Copilot CLI agents in real time.
+A zero-setup CLI dashboard for monitoring Claude Code, GitHub Copilot CLI, and Symphony agents in real time.
 
 Run `agent-watch` and instantly see what all your running sessions are doing -- which project, current action, status, and how long they've been running. Designed to live in a tmux/psmux pane as your agent task manager.
 
@@ -37,7 +37,7 @@ The **broadcasting** feature (sending one prompt to many agents at once) require
 ## Installation
 
 ```bash
-go install github.com/tarikguney/agent-watch@latest
+go install github.com/ShauryaThakar23/agent-watch@latest
 ```
 
 ## Usage
@@ -50,6 +50,7 @@ agent-watch
 agent-watch --provider all
 agent-watch --provider claude
 agent-watch --provider copilot
+agent-watch --provider symphony
 
 # Custom refresh interval
 agent-watch --refresh 1s
@@ -59,6 +60,11 @@ agent-watch --claude-dir /path/to/.claude
 
 # Custom Copilot directory
 agent-watch --provider copilot --copilot-dir /path/to/.copilot
+
+# Symphony dashboard provider
+agent-watch --provider symphony \
+  --symphony-state ~/.symphony/runtime-state.json \
+  --symphony-sessions /path/to/Symphony/symphony-sessions.log
 
 # Compact mode for narrow tmux panes
 agent-watch --compact
@@ -89,6 +95,31 @@ agent-watch --test-windows-notification
 | `g` | Go to the session's tmux/psmux window (jumps the active client) |
 | `x` | Kill the selected session's process (asks for confirmation) |
 | `q` / `Ctrl+C` | Quit |
+
+### Symphony provider
+
+The `symphony` provider renders Symphony work items as dashboard rows while
+reusing agent-watch's Copilot session enrichment and psmux/tmux jump support.
+It reads Symphony's runtime snapshot plus session log:
+
+```bash
+agent-watch --provider symphony \
+  --symphony-state ~/.symphony/runtime-state.json \
+  --symphony-sessions /path/to/Symphony/symphony-sessions.log \
+  --symphony-workspaces ~/.symphony/workspaces
+```
+
+Rows are work-item-centric, not process-centric: idle/retry rows are still
+visible even without a live Copilot process. When a WI has a current Copilot
+session, the provider reads `~/.copilot/session-state/<session>/events.jsonl`
+and `inuse.<pid>.lock` to show the current action and enable `g` pane jumps.
+
+Symphony resolves sessions in this order:
+
+1. live running row session id
+2. current-phase session id
+3. latest `symphony-sessions.log` entry for `(work item, current phase)`
+4. global latest session id fallback
 
 ## Dashboard columns
 

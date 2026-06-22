@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package session
 
@@ -152,4 +152,3 @@ func TestScanner_MultipleProjects(t *testing.T) {
 		}
 	}
 }
-

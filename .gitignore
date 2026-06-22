@@ -1,3 +1,5 @@
 agent-watch
 agent-watch.exe
 *.exe~
+
+bin/

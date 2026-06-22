@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package ui
 
@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ShauryaThakar23/agent-watch/internal/notify"
+	"github.com/ShauryaThakar23/agent-watch/internal/session"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/tarikguney/agent-watch/internal/notify"
-	"github.com/tarikguney/agent-watch/internal/session"
 )
 
 type fakeNotifier struct {

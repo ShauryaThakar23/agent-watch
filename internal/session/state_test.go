@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package session
 
@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/tarikguney/agent-watch/internal/parser"
+	"github.com/ShauryaThakar23/agent-watch/internal/parser"
 )
 
 func TestDeriveStatus_Result(t *testing.T) {

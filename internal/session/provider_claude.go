@@ -1,6 +1,6 @@
 // Copyright 2026 Tarik Guney
 // Licensed under the MIT License.
-// https://github.com/tarikguney/agent-watch
+// https://github.com/ShauryaThakar23/agent-watch
 
 package session
 
@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tarikguney/agent-watch/internal/parser"
-	"github.com/tarikguney/agent-watch/internal/process"
-	"github.com/tarikguney/agent-watch/internal/tmux"
+	"github.com/ShauryaThakar23/agent-watch/internal/parser"
+	"github.com/ShauryaThakar23/agent-watch/internal/process"
+	"github.com/ShauryaThakar23/agent-watch/internal/tmux"
 )
 
 type claudeProvider struct {
