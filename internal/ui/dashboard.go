@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -54,6 +56,7 @@ var (
 		session.StatusError:        lipgloss.NewStyle().Background(lipgloss.Color("9")).Foreground(lipgloss.Color("0")).Bold(true),       // Red bg
 		session.StatusInterrupted:  lipgloss.NewStyle().Background(lipgloss.Color("11")).Foreground(lipgloss.Color("0")).Bold(true),      // Yellow bg
 		session.StatusWaiting:      lipgloss.NewStyle().Background(lipgloss.Color("6")).Foreground(lipgloss.Color("0")).Bold(true),       // Teal bg
+		session.StatusRetry:        lipgloss.NewStyle().Background(lipgloss.Color("11")).Foreground(lipgloss.Color("0")).Bold(true),      // Yellow bg
 	}
 )
 
@@ -434,8 +437,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursorIdx < len(m.sessions) {
 				s := m.sessions[m.cursorIdx]
 				if s.TmuxSession == "" {
-					m.statusMsg = "Session not in tmux"
-					m.statusExp = time.Now().Add(3 * time.Second)
+					if err := openSessionInNewTerminal(s); err == nil {
+						m.statusMsg = fmt.Sprintf("Opened %s in a new terminal", displayProjectName(s))
+						m.statusExp = time.Now().Add(3 * time.Second)
+					} else {
+						m.statusMsg = err.Error()
+						m.statusExp = time.Now().Add(5 * time.Second)
+					}
 				} else if err := tmux.SwitchToPane(s.TmuxSession, s.TmuxPaneID); err == nil {
 					m.statusMsg = fmt.Sprintf("Switched to %s", s.TmuxSession)
 					m.statusExp = time.Now().Add(3 * time.Second)
@@ -1323,6 +1331,11 @@ func actionForStatus(s session.State, now time.Time) string {
 		return "Interrupted by user"
 	case session.StatusWaiting:
 		return "Waiting for first prompt..."
+	case session.StatusRetry:
+		if s.CurrentAction != "" {
+			return s.CurrentAction
+		}
+		return "Retry pending..."
 	default:
 		return ""
 	}
@@ -1358,6 +1371,8 @@ func statusPriority(s session.Status) int {
 	case session.StatusCompletedAgo:
 		return 3
 	case session.StatusWaiting:
+		return 4
+	case session.StatusRetry:
 		return 4
 	case session.StatusDone:
 		return 5
@@ -1465,6 +1480,42 @@ func killProcess(pid int) error {
 		return err
 	}
 	return proc.Kill()
+}
+
+func openSessionInNewTerminal(s session.State) error {
+	if s.SessionID == "" {
+		return fmt.Errorf("selected row has no session id yet")
+	}
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("session not in tmux; run manually: agency copilot -- --yolo --resume %s", s.SessionID)
+	}
+
+	if _, err := exec.LookPath("wt"); err == nil {
+		name, args := windowsTerminalResumeCommand(s, true)
+		return exec.Command(name, args...).Start()
+	}
+
+	// Windows Terminal is not always installed. Fall back to cmd.exe's `start`,
+	// which opens a new console window and leaves it open for the interactive
+	// resumed Copilot session.
+	name, args := windowsTerminalResumeCommand(s, false)
+	return exec.Command(name, args...).Start()
+}
+
+func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (string, []string) {
+	shell := "pwsh"
+	if _, err := exec.LookPath(shell); err != nil {
+		shell = "powershell"
+	}
+	cwd := s.Cwd
+	if cwd == "" {
+		cwd = "."
+	}
+	resumeCommand := fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
+	if useWindowsTerminal {
+		return "wt", []string{"new-tab", "--title", displayProjectName(s), "-d", cwd, shell, "-NoExit", "-Command", resumeCommand}
+	}
+	return "cmd.exe", []string{"/c", "start", "", "/D", cwd, shell, "-NoExit", "-Command", resumeCommand}
 }
 
 func filterSessions(sessions []session.State, provider string) []session.State {

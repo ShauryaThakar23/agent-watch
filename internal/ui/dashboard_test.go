@@ -1046,6 +1046,40 @@ func TestBroadcast_SkipsSelfPane(t *testing.T) {
 	}
 }
 
+func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
+	s := session.State{
+		SessionID:   "abc-123",
+		Cwd:         `C:\Users\me\.symphony\workspaces\SCC-1`,
+		ProjectName: "SCC-1 test",
+	}
+
+	name, args := windowsTerminalResumeCommand(s, true)
+	if name != "wt" {
+		t.Fatalf("expected wt, got %q", name)
+	}
+	got := strings.Join(args, " ")
+	for _, want := range []string{"new-tab", "SCC-1 test", s.Cwd, "agency copilot -- --yolo --resume abc-123"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %q in args %q", want, got)
+		}
+	}
+}
+
+func TestWindowsTerminalResumeCommand_FallsBackToCmdStart(t *testing.T) {
+	s := session.State{SessionID: "abc-123", ProjectName: "SCC-1"}
+
+	name, args := windowsTerminalResumeCommand(s, false)
+	if name != "cmd.exe" {
+		t.Fatalf("expected cmd.exe, got %q", name)
+	}
+	got := strings.Join(args, " ")
+	for _, want := range []string{"start", "/D .", "agency copilot -- --yolo --resume abc-123"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("expected %q in args %q", want, got)
+		}
+	}
+}
+
 // TestMark_SelectAllExcludesSelfPane verifies 'v' does not mark the dashboard's
 // own pane.
 func TestMark_SelectAllExcludesSelfPane(t *testing.T) {

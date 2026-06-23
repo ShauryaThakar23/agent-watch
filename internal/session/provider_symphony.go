@@ -450,7 +450,7 @@ func symphonyStatus(known *symphonyKnownRow, running *symphonyRunningRow, retry 
 		return StatusResponding
 	}
 	if retry != nil {
-		return StatusWaiting
+		return StatusRetry
 	}
 	if known == nil {
 		return StatusWaiting
@@ -459,7 +459,7 @@ func symphonyStatus(known *symphonyKnownRow, running *symphonyRunningRow, retry 
 	case "running":
 		return StatusResponding
 	case "retry":
-		return StatusWaiting
+		return StatusRetry
 	case "done":
 		return StatusDone
 	case "quarantined", "error", "failed":

@@ -113,6 +113,9 @@ Rows are work-item-centric, not process-centric: idle/retry rows are still
 visible even without a live Copilot process. When a WI has a current Copilot
 session, the provider reads `~/.copilot/session-state/<session>/events.jsonl`
 and `inuse.<pid>.lock` to show the current action and enable `g` pane jumps.
+If the selected Symphony session is not inside tmux/psmux, `g` opens a new
+terminal and resumes the Copilot session with
+`agency copilot -- --yolo --resume <session-id>` instead of failing.
 
 Symphony resolves sessions in this order:
 

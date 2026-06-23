@@ -136,6 +136,55 @@ func TestSymphonyScanner_IncludesRowsWithoutLiveProcess(t *testing.T) {
 	}
 }
 
+func TestSymphonyProvider_RetryRowsShowRetryStatus(t *testing.T) {
+	base := time.Date(2026, 6, 22, 19, 0, 0, 0, time.UTC)
+	root := t.TempDir()
+	statePath := filepath.Join(root, "runtime-state.json")
+	runtimeJSON := fmt.Sprintf(`{
+		"GeneratedAt": %q,
+		"OrchestratorPid": 123,
+		"Running": [],
+		"Retrying": [{
+			"IssueId": "4599270",
+			"Identifier": "SCC-4599270",
+			"Attempt": 6,
+			"DueAt": %q,
+			"Error": "agency exited 1 without result event"
+		}],
+		"Known": [{
+			"IssueId": "4599270",
+			"Identifier": "SCC-4599270",
+			"Title": "Implement validation retry loop",
+			"LastPhase": "Planning",
+			"Status": "Retry",
+			"LastUpdate": %q
+		}]
+	}`, base.Format(time.RFC3339Nano), base.Add(time.Minute).Format(time.RFC3339Nano), base.Format(time.RFC3339Nano))
+	if err := os.WriteFile(statePath, []byte(runtimeJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := NewSymphonyProvider(SymphonyConfig{
+		StatePath:      statePath,
+		WorkspacesRoot: filepath.Join(root, "workspaces"),
+		CopilotDir:     filepath.Join(root, ".copilot"),
+	})
+	paths, err := provider.Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := provider.LoadSession(paths[0], State{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.Status != StatusRetry {
+		t.Fatalf("expected Retry status, got %s", state.Status)
+	}
+	if !strings.Contains(state.CurrentAction, "agency exited 1") {
+		t.Fatalf("expected retry error in action, got %q", state.CurrentAction)
+	}
+}
+
 func TestSymphonyProvider_MatchProcessesUsesCopilotLockFiles(t *testing.T) {
 	root := t.TempDir()
 	copilotDir := filepath.Join(root, ".copilot")
