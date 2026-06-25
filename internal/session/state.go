@@ -45,6 +45,7 @@ type State struct {
 	LastPrompt     string
 	LastResponse   string
 	CurrentAction  string
+	MCPStatus      string
 	Status         Status
 	CompletedAt    time.Time
 	Model          string

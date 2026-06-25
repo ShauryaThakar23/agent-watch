@@ -232,10 +232,12 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 
 func (p *symphonyProvider) enrichFromCopilot(state *State) {
 	if state.SessionID == "" {
+		state.MCPStatus = "ADO ?"
 		return
 	}
 	eventsPath := filepath.Join(p.cfg.CopilotDir, "session-state", state.SessionID, "events.jsonl")
 	if _, err := os.Stat(eventsPath); err != nil {
+		state.MCPStatus = "ADO ?"
 		return
 	}
 
@@ -261,6 +263,33 @@ func (p *symphonyProvider) enrichFromCopilot(state *State) {
 	if copilotState.Status != "" {
 		state.Status = copilotState.Status
 	}
+	state.MCPStatus = detectAzureDevOpsMCPStatus(eventsPath)
+}
+
+func detectAzureDevOpsMCPStatus(eventsPath string) string {
+	data, err := os.ReadFile(eventsPath)
+	if err != nil {
+		return "ADO ?"
+	}
+	text := string(data)
+	lower := strings.ToLower(text)
+
+	if strings.Contains(lower, `"name":"azure-devops"`) && strings.Contains(lower, `"status":"connected"`) {
+		return "ADO ok"
+	}
+	if strings.Contains(lower, `"servername":"azure-devops"`) && strings.Contains(lower, `"status":"connected"`) {
+		return "ADO ok"
+	}
+	if strings.Contains(lower, `"mcpservername":"azure-devops"`) || strings.Contains(lower, "azure-devops-") {
+		return "ADO used"
+	}
+	if strings.Contains(lower, `"name":"azure-devops"`) || strings.Contains(lower, `"servername":"azure-devops"`) {
+		return "ADO missing"
+	}
+	if strings.Contains(lower, "session.mcp_servers_loaded") || strings.Contains(lower, "session.mcp_server_status_changed") {
+		return "ADO missing"
+	}
+	return "ADO ?"
 }
 
 func (p *symphonyProvider) readRuntimeState() (symphonyRuntimeState, error) {

@@ -112,6 +112,9 @@ func TestRender_WithSessions(t *testing.T) {
 	if !strings.Contains(output, "PROVIDER") {
 		t.Error("expected column header PROVIDER")
 	}
+	if !strings.Contains(output, "MCP") {
+		t.Error("expected column header MCP")
+	}
 	if !strings.Contains(output, "myapp") {
 		t.Error("expected project name 'myapp'")
 	}

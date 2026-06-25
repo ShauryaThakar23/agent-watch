@@ -90,6 +90,9 @@ func TestSymphonyProvider_LoadsRuntimeRowsAndPrefersCurrentPhaseSession(t *testi
 	if state.Status != StatusToolUse {
 		t.Fatalf("Status: got %s", state.Status)
 	}
+	if state.MCPStatus != "ADO ?" {
+		t.Fatalf("MCPStatus: got %q", state.MCPStatus)
+	}
 }
 
 func TestSymphonyScanner_IncludesRowsWithoutLiveProcess(t *testing.T) {
@@ -192,6 +195,7 @@ func TestSymphonyProvider_MatchProcessesUsesCopilotLockFiles(t *testing.T) {
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		t.Fatal(err)
 	}
+
 	if err := os.WriteFile(filepath.Join(sessionDir, "inuse.321.lock"), []byte("321"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -203,6 +207,52 @@ func TestSymphonyProvider_MatchProcessesUsesCopilotLockFiles(t *testing.T) {
 
 	if state.PID != 321 {
 		t.Fatalf("PID: got %d, want 321", state.PID)
+	}
+}
+
+func TestDetectAzureDevOpsMCPStatus(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "loaded connected",
+			body: `{"type":"session.mcp_servers_loaded","data":{"servers":[{"name":"azure-devops","status":"connected"}]}}`,
+			want: "ADO ok",
+		},
+		{
+			name: "status changed connected",
+			body: `{"type":"session.mcp_server_status_changed","data":{"serverName":"azure-devops","status":"connected"}}`,
+			want: "ADO ok",
+		},
+		{
+			name: "tool use proves availability",
+			body: `{"type":"tool.execution_start","data":{"toolName":"azure-devops-wit_get_work_item","mcpServerName":"azure-devops"}}`,
+			want: "ADO used",
+		},
+		{
+			name: "loaded but missing ado",
+			body: `{"type":"session.mcp_servers_loaded","data":{"servers":[{"name":"github-mcp-server","status":"connected"}]}}`,
+			want: "ADO missing",
+		},
+		{
+			name: "no mcp evidence",
+			body: `{"type":"assistant.message","data":{"content":"hello"}}`,
+			want: "ADO ?",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "events.jsonl")
+			if err := os.WriteFile(path, []byte(tt.body+"\n"), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if got := detectAzureDevOpsMCPStatus(path); got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

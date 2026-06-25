@@ -65,6 +65,7 @@ type cols struct {
 	pid      int
 	tmux     int
 	provider int
+	mcp      int
 	project  int
 	status   int
 	action   int
@@ -102,6 +103,7 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	c := cols{
 		pid:      len("PID") + 2,
 		provider: len("PROVIDER") + 2,
+		mcp:      len("MCP") + 2,
 		status:   len("STATUS") + 2,
 		dur:      len("DURATION") + 2,
 	}
@@ -130,6 +132,9 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 		if w := len(providerLabel(s)) + 2; w > idealProvider {
 			idealProvider = w
 		}
+		if w := len(mcpLabel(s)) + 2; w > c.mcp {
+			c.mcp = w
+		}
 		if w := len(statusLabel(s, now)) + 2; w > c.status {
 			c.status = w
 		}
@@ -153,13 +158,13 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 		c.status = statusColCap
 	}
 
-	numSep := 5
+	numCols := 7
 	if hasTmux {
-		numSep = 6
+		numCols = 8
 	}
-	separators := numSep * 3
+	separators := (numCols - 1) * 3
 
-	avail := termW - c.pid - c.provider - c.status - c.dur - separators
+	avail := termW - c.pid - c.status - c.dur - separators
 	minAction := len("CURRENT ACTION") + 2
 	minProvider := len("PROV") + 2
 	minTmux := 0
@@ -171,7 +176,7 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	c.tmux = idealTmux
 	c.provider = idealProvider
 	c.project = idealProject
-	c.action = avail - c.tmux - c.provider - c.project
+	c.action = avail - c.tmux - c.provider - c.mcp - c.project
 
 	// If action is starved, steal space from tmux first, then project/provider.
 	for c.action < minAction {
@@ -509,10 +514,11 @@ func (m Model) layout(now time.Time) (top, body, footer []string, spans []rowSpa
 	}
 	titleParts = append(titleParts, timestamp)
 
-	widths := []int{c.pid, c.provider, c.project, c.status, c.action, c.dur}
+	widths := []int{c.pid, c.provider, c.mcp, c.project, c.status, c.action, c.dur}
 	headers := []string{
 		colHeaderStyle.Width(c.pid).Render(truncate("PID", c.pid)),
 		colHeaderStyle.Width(c.provider).Render(truncate("PROVIDER", c.provider)),
+		colHeaderStyle.Width(c.mcp).Render(truncate("MCP", c.mcp)),
 		colHeaderStyle.Width(c.project).Render(truncate("PROJECT", c.project)),
 		colHeaderStyle.Width(c.status).Render(truncate("STATUS", c.status)),
 		colHeaderStyle.Width(c.action).Render(truncate("CURRENT ACTION", c.action)),
@@ -1234,6 +1240,7 @@ func renderRow(s session.State, now time.Time, c cols, isCursor, isMarked, isKil
 	cells := []string{
 		pidCell,
 		styledProvider(providerLabel(s), c.provider),
+		styledMCP(mcpLabel(s), c.mcp),
 		projectStyle.Width(c.project).Render(truncate(s.ProjectName, c.project)),
 		styledStatusCell(s, now, c.status, isKilling),
 		actionStyle.Width(c.action).Render(truncate(action, c.action)),
@@ -1285,6 +1292,27 @@ func styledProvider(provider string, width int) string {
 		style = providerStyles["UNKNOWN"]
 	}
 	return style.Width(width).Render(truncate(provider, width))
+}
+
+func styledMCP(label string, width int) string {
+	style := durationStyle
+	switch label {
+	case "ADO ok", "ADO used":
+		style = lipgloss.NewStyle().Foreground(lipgloss.Color("#8EC07C")).Bold(true)
+	case "ADO missing":
+		style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8800")).Bold(true)
+	}
+	return style.Width(width).Render(truncate(label, width))
+}
+
+func mcpLabel(s session.State) string {
+	if s.MCPStatus != "" {
+		return s.MCPStatus
+	}
+	if providerLabel(s) == "SYMPHONY" || providerLabel(s) == "COPILOT" {
+		return "ADO ?"
+	}
+	return "—"
 }
 
 func joinCols(cells []string) string {
