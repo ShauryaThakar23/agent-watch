@@ -1487,7 +1487,7 @@ func openSessionInNewTerminal(s session.State) error {
 		return fmt.Errorf("selected row has no session id yet")
 	}
 	if runtime.GOOS != "windows" {
-		return fmt.Errorf("session not in tmux; run manually: agency copilot -- --yolo --resume %s", s.SessionID)
+		return fmt.Errorf("session not in tmux; run manually: Symphony -Session %s", s.SessionID)
 	}
 
 	if _, err := exec.LookPath("wt"); err == nil {
@@ -1496,8 +1496,7 @@ func openSessionInNewTerminal(s session.State) error {
 	}
 
 	// Windows Terminal is not always installed. Fall back to cmd.exe's `start`,
-	// which opens a new console window and leaves it open for the interactive
-	// resumed Copilot session.
+	// which opens a new console window and leaves it open for Symphony -Session.
 	name, args := windowsTerminalResumeCommand(s, false)
 	return exec.Command(name, args...).Start()
 }
@@ -1511,7 +1510,7 @@ func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (str
 	if cwd == "" {
 		cwd = "."
 	}
-	resumeCommand := fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
+	resumeCommand := fmt.Sprintf("Symphony -Session %s", s.SessionID)
 	if useWindowsTerminal {
 		return "wt", []string{"new-tab", "--title", displayProjectName(s), "-d", cwd, shell, "-NoExit", "-Command", resumeCommand}
 	}
