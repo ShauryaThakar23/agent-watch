@@ -5,8 +5,6 @@
 package ui
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1052,15 +1050,10 @@ func TestBroadcast_SkipsSelfPane(t *testing.T) {
 }
 
 func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
-	mcpConfig := filepath.Join(t.TempDir(), "copilot-mcp-config.json")
-	if err := os.WriteFile(mcpConfig, []byte(`{"mcpServers":{"azure-devops":{}}}`), 0644); err != nil {
-		t.Fatal(err)
-	}
 	s := session.State{
-		SessionID:     "abc-123",
-		Cwd:           `C:\Users\me\.symphony\workspaces\SCC-1`,
-		MCPConfigPath: mcpConfig,
-		ProjectName:   "SCC-1 test",
+		SessionID:   "abc-123",
+		Cwd:         `C:\Users\me\.symphony\workspaces\SCC-1`,
+		ProjectName: "SCC-1 test",
 	}
 
 	name, args := windowsTerminalResumeCommand(s, true)
@@ -1068,7 +1061,7 @@ func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
 		t.Fatalf("expected wt, got %q", name)
 	}
 	got := strings.Join(args, " ")
-	for _, want := range []string{"new-tab", "SCC-1 test", s.Cwd, "agency copilot -- --yolo --resume abc-123", "--additional-mcp-config"} {
+	for _, want := range []string{"new-tab", "SCC-1 test", s.Cwd, "agency copilot --mcp \"ado --organization skype\" -- --yolo --resume abc-123"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
 		}
@@ -1083,7 +1076,7 @@ func TestWindowsTerminalResumeCommand_FallsBackToCmdStart(t *testing.T) {
 		t.Fatalf("expected cmd.exe, got %q", name)
 	}
 	got := strings.Join(args, " ")
-	for _, want := range []string{"start", "/D .", "agency copilot -- --yolo --resume abc-123"} {
+	for _, want := range []string{"start", "/D .", "agency copilot --mcp \"ado --organization skype\" -- --yolo --resume abc-123"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
 		}
