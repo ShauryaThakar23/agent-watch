@@ -1515,7 +1515,7 @@ func openSessionInNewTerminal(s session.State) error {
 		return fmt.Errorf("selected row has no session id yet")
 	}
 	if runtime.GOOS != "windows" {
-		return fmt.Errorf("session not in tmux; run manually: Symphony -Session %s", s.SessionID)
+		return fmt.Errorf("session not in tmux; run manually: agency copilot -- --yolo --resume %s", s.SessionID)
 	}
 
 	if _, err := exec.LookPath("wt"); err == nil {
@@ -1524,7 +1524,8 @@ func openSessionInNewTerminal(s session.State) error {
 	}
 
 	// Windows Terminal is not always installed. Fall back to cmd.exe's `start`,
-	// which opens a new console window and leaves it open for Symphony -Session.
+	// which opens a new console window and leaves it open for the interactive
+	// resumed Copilot session.
 	name, args := windowsTerminalResumeCommand(s, false)
 	return exec.Command(name, args...).Start()
 }
@@ -1538,11 +1539,53 @@ func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (str
 	if cwd == "" {
 		cwd = "."
 	}
-	resumeCommand := fmt.Sprintf("Symphony -Session %s", s.SessionID)
+	mcpConfig := s.MCPConfigPath
+	if mcpConfig == "" && s.Cwd != "" {
+		mcpConfig = filepath.Join(s.Cwd, ".symphony", "copilot-mcp-config.json")
+	}
+	if mcpConfig != "" && !fileExists(mcpConfig) {
+		_ = writeFallbackAzureDevOpsMCPConfig(mcpConfig)
+	}
+
+	resumeCommand := fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
+	if mcpConfig != "" && fileExists(mcpConfig) {
+		resumeCommand += fmt.Sprintf(" --additional-mcp-config @%s", quotePowerShellArg(mcpConfig))
+	}
 	if useWindowsTerminal {
 		return "wt", []string{"new-tab", "--title", displayProjectName(s), "-d", cwd, shell, "-NoExit", "-Command", resumeCommand}
 	}
 	return "cmd.exe", []string{"/c", "start", "", "/D", cwd, shell, "-NoExit", "-Command", resumeCommand}
+}
+
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && !info.IsDir()
+}
+
+func writeFallbackAzureDevOpsMCPConfig(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return err
+	}
+	const config = `{
+  "mcpServers": {
+    "azure-devops": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@azure-devops/mcp", "skype", "--authentication", "azcli"],
+      "tools": ["*"],
+      "env": { "ado_mcp_project": "SCC" }
+    }
+  }
+}
+`
+	return os.WriteFile(path, []byte(config), 0644)
+}
+
+func quotePowerShellArg(value string) string {
+	if !strings.ContainsAny(value, " '\"`") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func filterSessions(sessions []session.State, provider string) []session.State {

@@ -114,9 +114,9 @@ visible even without a live Copilot process. When a WI has a current Copilot
 session, the provider reads `~/.copilot/session-state/<session>/events.jsonl`
 and `inuse.<pid>.lock` to show the current action and enable `g` pane jumps.
 If the selected Symphony session is not inside tmux/psmux, `g` opens a new
-terminal and runs `Symphony -Session <session-id>` instead of failing. That keeps
-the same Symphony resume path, AGENTS.md materialization, and MCP config setup as
-normal manual takeover.
+terminal and resumes with `agency copilot -- --yolo --resume <session-id>` plus
+the per-workspace Symphony `--additional-mcp-config`, so Azure DevOps MCP is
+forced for the resumed session even outside a multiplexer.
 
 Symphony resolves sessions in this order:
 

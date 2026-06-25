@@ -41,6 +41,7 @@ type State struct {
 	TmuxSession    string // "session/window" from tmux/psmux, or ""
 	TmuxPaneID     string // tmux pane unique ID for navigation, e.g. "%5"
 	TmuxSendTarget string // fully-qualified "session:window.pane" for send-keys, or ""
+	MCPConfigPath  string
 	OriginalTask   string
 	LastPrompt     string
 	LastResponse   string

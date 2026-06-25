@@ -209,6 +209,7 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 	state.Provider = "symphony"
 	state.SessionID = resolveSymphonySessionID(known, running, records)
 	state.Cwd = resolveSymphonyWorkspace(p.cfg.WorkspacesRoot, known, running, issueID)
+	state.MCPConfigPath = resolveSymphonyMCPConfigPath(state.Cwd)
 	state.ProjectName = symphonyProjectName(known, running, issueID)
 	state.OriginalTask = symphonyOriginalTask(known, issueID)
 	state.LastPrompt = state.OriginalTask
@@ -407,6 +408,13 @@ func resolveSymphonyWorkspace(root string, known *symphonyKnownRow, running *sym
 		return ""
 	}
 	return filepath.Join(root, sanitizeSymphonyWorkspaceKey(identifier))
+}
+
+func resolveSymphonyMCPConfigPath(workspace string) string {
+	if workspace == "" {
+		return ""
+	}
+	return filepath.Join(workspace, ".symphony", "copilot-mcp-config.json")
 }
 
 func sanitizeSymphonyWorkspaceKey(identifier string) string {
