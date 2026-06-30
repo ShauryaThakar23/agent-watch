@@ -1515,7 +1515,7 @@ func openSessionInNewTerminal(s session.State) error {
 		return fmt.Errorf("selected row has no session id yet")
 	}
 	if runtime.GOOS != "windows" {
-		return fmt.Errorf("session not in tmux; run manually: agency copilot -- --yolo --resume %s", s.SessionID)
+		return fmt.Errorf("session not in tmux; run manually: %s", resumeCommandForSession(s))
 	}
 
 	if _, err := exec.LookPath("wt"); err == nil {
@@ -1539,11 +1539,18 @@ func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (str
 	if cwd == "" {
 		cwd = "."
 	}
-	resumeCommand := fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
+	resumeCommand := resumeCommandForSession(s)
 	if useWindowsTerminal {
 		return "wt", []string{"new-tab", "--title", displayProjectName(s), "-d", cwd, shell, "-NoExit", "-Command", resumeCommand}
 	}
 	return "cmd.exe", []string{"/c", "start", "", "/D", cwd, shell, "-NoExit", "-Command", resumeCommand}
+}
+
+func resumeCommandForSession(s session.State) string {
+	if strings.EqualFold(s.Provider, "symphony") {
+		return fmt.Sprintf("agency copilot --mcp \"ado --organization skype\" -- --yolo --resume %s", s.SessionID)
+	}
+	return fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
 }
 
 func filterSessions(sessions []session.State, provider string) []session.State {

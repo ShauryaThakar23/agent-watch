@@ -1052,6 +1052,7 @@ func TestBroadcast_SkipsSelfPane(t *testing.T) {
 func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
 	s := session.State{
 		SessionID:   "abc-123",
+		Provider:    "symphony",
 		Cwd:         `C:\Users\me\.symphony\workspaces\SCC-1`,
 		ProjectName: "SCC-1 test",
 	}
@@ -1061,7 +1062,7 @@ func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
 		t.Fatalf("expected wt, got %q", name)
 	}
 	got := strings.Join(args, " ")
-	for _, want := range []string{"new-tab", "SCC-1 test", s.Cwd, "agency copilot -- --yolo --resume abc-123"} {
+	for _, want := range []string{"new-tab", "SCC-1 test", s.Cwd, "agency copilot --mcp \"ado --organization skype\" -- --yolo --resume abc-123"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
 		}
@@ -1069,17 +1070,30 @@ func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
 }
 
 func TestWindowsTerminalResumeCommand_FallsBackToCmdStart(t *testing.T) {
-	s := session.State{SessionID: "abc-123", ProjectName: "SCC-1"}
+	s := session.State{SessionID: "abc-123", Provider: "symphony", ProjectName: "SCC-1"}
 
 	name, args := windowsTerminalResumeCommand(s, false)
 	if name != "cmd.exe" {
 		t.Fatalf("expected cmd.exe, got %q", name)
 	}
 	got := strings.Join(args, " ")
-	for _, want := range []string{"start", "/D .", "agency copilot -- --yolo --resume abc-123"} {
+	for _, want := range []string{"start", "/D .", "agency copilot --mcp \"ado --organization skype\" -- --yolo --resume abc-123"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
 		}
+	}
+}
+
+func TestWindowsTerminalResumeCommand_NonSymphonyKeepsRawResume(t *testing.T) {
+	s := session.State{SessionID: "abc-123", Provider: "copilot", ProjectName: "plain copilot"}
+
+	_, args := windowsTerminalResumeCommand(s, true)
+	got := strings.Join(args, " ")
+	if !strings.Contains(got, "agency copilot -- --yolo --resume abc-123") {
+		t.Fatalf("expected raw resume command in args %q", got)
+	}
+	if strings.Contains(got, "--mcp") {
+		t.Fatalf("did not expect MCP flag for non-Symphony args %q", got)
 	}
 }
 
