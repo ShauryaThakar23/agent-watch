@@ -106,14 +106,17 @@ func TestRender_WithSessions(t *testing.T) {
 	if !strings.Contains(output, "AGENT WATCH") {
 		t.Error("expected header")
 	}
-	if !strings.Contains(output, "PROJECT") {
-		t.Error("expected column header PROJECT")
+	if !strings.Contains(output, "TITLE") {
+		t.Error("expected column header TITLE")
 	}
 	if !strings.Contains(output, "PROVIDER") {
 		t.Error("expected column header PROVIDER")
 	}
-	if !strings.Contains(output, "MCP") {
-		t.Error("expected column header MCP")
+	if strings.Contains(output, "PID") {
+		t.Error("did not expect PID column header")
+	}
+	if strings.Contains(output, "MCP") {
+		t.Error("did not expect MCP column header")
 	}
 	if !strings.Contains(output, "myapp") {
 		t.Error("expected project name 'myapp'")
@@ -332,11 +335,14 @@ func TestComputeCols_CapsFlexColumns(t *testing.T) {
 	if c.tmux > tmuxColCap {
 		t.Errorf("tmux column should be capped at %d, got %d", tmuxColCap, c.tmux)
 	}
-	if c.project > projectColCap {
-		t.Errorf("project column should be capped at %d, got %d", projectColCap, c.project)
+	if c.title > titleColCap {
+		t.Errorf("title column should be capped at %d, got %d", titleColCap, c.title)
 	}
-	if c.action < len("CURRENT ACTION")+2 {
-		t.Errorf("action column should get remaining space, got %d", c.action)
+	if c.action > actionColCap {
+		t.Errorf("action column should be capped at %d, got %d", actionColCap, c.action)
+	}
+	if c.title <= c.action {
+		t.Errorf("title column should be wider than action column, got title=%d action=%d", c.title, c.action)
 	}
 }
 

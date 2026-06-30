@@ -126,12 +126,12 @@ Symphony resolves sessions in this order:
 
 ## Dashboard columns
 
-- **PID** — the OS process ID of the running process. A `>` marker highlights the cursor.
+- The unlabeled first column shows the cursor (`>`) and broadcast selection marker (`*`).
 - **TMUX SESSION/WINDOW** — the `session/window` name when the session is running inside tmux, psmux, or pmux. Hidden automatically when no session is in a multiplexer.
 - **PROVIDER** — `CLAUDE` or `COPILOT`, shown as a badge for each row.
-- **PROJECT** — the project name derived from the session's working directory.
+- **TITLE** — the session/project title or Symphony work-item title.
 - **STATUS** — what the agent is doing right now (see below).
-- **CURRENT ACTION** — the active tool call or a human-readable description of the current phase.
+- **ACTION** — the active tool call or a human-readable description of the current phase.
 - **DURATION** — elapsed time since the session started.
 
 When a row is expanded, two extra lines appear beneath it:

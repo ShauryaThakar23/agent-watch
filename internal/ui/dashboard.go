@@ -33,7 +33,6 @@ var (
 	tmuxStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#9EC8E0")) // Soft cyan
 	actionStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	durationStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	pidStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cursorStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D4A0FF")) // Bright arrow indicator
 	markStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFD700")) // Gold selection marker
 	helpKeyStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6CB6FF")) // Soft blue for keys
@@ -62,31 +61,30 @@ var (
 
 // cols holds computed column widths for a render pass.
 type cols struct {
-	pid      int
+	gutter   int
 	tmux     int
 	provider int
-	mcp      int
-	project  int
+	title    int
 	status   int
 	action   int
 	dur      int
 }
 
-// Column caps so one very long value can't starve the action column.
+// Column caps so one very long value can't starve the rest of the table.
 // Content longer than the cap is truncated with "…" at render time.
 const (
 	tmuxColCap           = 30
-	projectColCap        = 30
+	titleColCap          = 64
+	actionColCap         = 32
 	statusColCap         = 32
 	notificationCooldown = 4 * time.Second
 )
 
 // computeCols calculates column widths that fit the terminal on one line.
-// PID, STATUS, DURATION are small and content-sized; TMUX and PROJECT are
-// content-sized up to a cap; ACTION absorbs whatever space is left. If the
-// terminal is too narrow to give ACTION its minimum, TMUX shrinks first,
-// then PROJECT. Cell contents are truncated to these widths at render time
-// so rows never wrap.
+// STATUS and DURATION are small and content-sized; TMUX and TITLE are capped;
+// ACTION is intentionally capped lower so Symphony work-item titles get more
+// screen space. Cell contents are truncated to these widths at render time so
+// rows never wrap.
 func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	if termW <= 0 {
 		termW = 120
@@ -101,27 +99,20 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	}
 
 	c := cols{
-		pid:      len("PID") + 2,
+		gutter:   2,
 		provider: len("PROVIDER") + 2,
-		mcp:      len("MCP") + 2,
 		status:   len("STATUS") + 2,
 		dur:      len("DURATION") + 2,
 	}
 	idealProvider := len("PROVIDER") + 2
-	idealProject := len("PROJECT") + 2
+	idealTitle := len("TITLE") + 2
+	idealAction := len("ACTION") + 2
 	idealTmux := 0
 	if hasTmux {
 		idealTmux = len("TMUX SESSION/WINDOW") + 2
 	}
 
 	for _, s := range sessions {
-		pidStr := ""
-		if s.PID > 0 {
-			pidStr = fmt.Sprintf("%d", s.PID)
-		}
-		if w := len(pidStr) + 2; w > c.pid {
-			c.pid = w
-		}
 		dur := ""
 		if !s.StartTime.IsZero() {
 			dur = session.FormatDuration(now.Sub(s.StartTime))
@@ -132,68 +123,100 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 		if w := len(providerLabel(s)) + 2; w > idealProvider {
 			idealProvider = w
 		}
-		if w := len(mcpLabel(s)) + 2; w > c.mcp {
-			c.mcp = w
-		}
 		if w := len(statusLabel(s, now)) + 2; w > c.status {
 			c.status = w
+		}
+		if w := len(actionForStatus(s, now)) + 2; w > idealAction {
+			idealAction = w
 		}
 		if hasTmux {
 			if w := len(s.TmuxSession) + 2; w > idealTmux {
 				idealTmux = w
 			}
 		}
-		if w := len(s.ProjectName) + 2; w > idealProject {
-			idealProject = w
+		if w := len(s.ProjectName) + 2; w > idealTitle {
+			idealTitle = w
 		}
 	}
 
 	if idealTmux > tmuxColCap {
 		idealTmux = tmuxColCap
 	}
-	if idealProject > projectColCap {
-		idealProject = projectColCap
+	if idealTitle > titleColCap {
+		idealTitle = titleColCap
+	}
+	if idealAction > actionColCap {
+		idealAction = actionColCap
 	}
 	if c.status > statusColCap {
 		c.status = statusColCap
 	}
+	c.provider = idealProvider
+	c.tmux = idealTmux
 
-	numCols := 7
+	numCols := 6
 	if hasTmux {
-		numCols = 8
+		numCols = 7
 	}
 	separators := (numCols - 1) * 3
 
-	avail := termW - c.pid - c.status - c.dur - separators
-	minAction := len("CURRENT ACTION") + 2
+	fixed := c.gutter + c.provider + c.status + c.dur + idealTmux + separators
+	avail := termW - fixed
+	minAction := len("ACTION") + 2
 	minProvider := len("PROV") + 2
 	minTmux := 0
 	if hasTmux {
 		minTmux = len("TMUX") + 2
 	}
-	minProject := len("PROJ") + 2
+	minTitle := len("TITLE") + 2
 
-	c.tmux = idealTmux
-	c.provider = idealProvider
-	c.project = idealProject
-	c.action = avail - c.tmux - c.provider - c.mcp - c.project
+	if avail <= minTitle+minAction {
+		c.title = minTitle
+		c.action = minAction
+	} else {
+		maxActionByRatio := max(minAction, avail/3)
+		c.action = min(idealAction, actionColCap, maxActionByRatio)
+		c.title = min(idealTitle, avail-c.action)
+		if c.title < minTitle {
+			deficit := minTitle - c.title
+			c.title = minTitle
+			c.action = max(minAction, c.action-deficit)
+		}
+		if leftover := avail - c.title - c.action; leftover > 0 {
+			addTitle := min(leftover, titleColCap-c.title)
+			c.title += addTitle
+			leftover -= addTitle
+			c.action += min(leftover, actionColCap-c.action)
+		}
+	}
 
-	// If action is starved, steal space from tmux first, then project/provider.
-	for c.action < minAction {
+	// If the flexible columns are starved, steal space from tmux first, then
+	// title/provider. Extremely narrow terminals may still overflow slightly.
+	for c.title < minTitle || c.action < minAction {
 		shrunk := false
 		if c.tmux > minTmux {
 			c.tmux--
-			c.action++
+			if c.title < minTitle {
+				c.title++
+			} else {
+				c.action++
+			}
 			shrunk = true
 		}
-		if c.action < minAction && c.project > minProject {
-			c.project--
-			c.action++
+		if (c.title < minTitle || c.action < minAction) && c.title > minTitle {
+			c.title--
+			if c.action < minAction {
+				c.action++
+			}
 			shrunk = true
 		}
-		if c.action < minAction && c.provider > minProvider {
+		if (c.title < minTitle || c.action < minAction) && c.provider > minProvider {
 			c.provider--
-			c.action++
+			if c.title < minTitle {
+				c.title++
+			} else {
+				c.action++
+			}
 			shrunk = true
 		}
 		if !shrunk {
@@ -514,14 +537,13 @@ func (m Model) layout(now time.Time) (top, body, footer []string, spans []rowSpa
 	}
 	titleParts = append(titleParts, timestamp)
 
-	widths := []int{c.pid, c.provider, c.mcp, c.project, c.status, c.action, c.dur}
+	widths := []int{c.gutter, c.provider, c.title, c.status, c.action, c.dur}
 	headers := []string{
-		colHeaderStyle.Width(c.pid).Render(truncate("PID", c.pid)),
+		colHeaderStyle.Width(c.gutter).Render(""),
 		colHeaderStyle.Width(c.provider).Render(truncate("PROVIDER", c.provider)),
-		colHeaderStyle.Width(c.mcp).Render(truncate("MCP", c.mcp)),
-		colHeaderStyle.Width(c.project).Render(truncate("PROJECT", c.project)),
+		colHeaderStyle.Width(c.title).Render(truncate("TITLE", c.title)),
 		colHeaderStyle.Width(c.status).Render(truncate("STATUS", c.status)),
-		colHeaderStyle.Width(c.action).Render(truncate("CURRENT ACTION", c.action)),
+		colHeaderStyle.Width(c.action).Render(truncate("ACTION", c.action)),
 		colHeaderStyle.Width(c.dur).Render(truncate("DURATION", c.dur)),
 	}
 	if c.tmux > 0 {
@@ -1219,12 +1241,7 @@ func renderRow(s session.State, now time.Time, c cols, isCursor, isMarked, isKil
 	if isKilling {
 		action = "Killing…"
 	}
-	pidStr := ""
-	if s.PID > 0 {
-		pidStr = fmt.Sprintf("%d", s.PID)
-	}
-
-	// Two-char gutter precedes the PID value: a cursor caret and a mark glyph.
+	// Two-char gutter keeps cursor and broadcast selection visible without a PID column.
 	cursorCh := " "
 	if isCursor {
 		cursorCh = ">"
@@ -1233,15 +1250,12 @@ func renderRow(s session.State, now time.Time, c cols, isCursor, isMarked, isKil
 	if isMarked {
 		markCh = "*"
 	}
-	pidW := max(1, c.pid-2)
-	pidCell := cursorStyle.Render(cursorCh) + markStyle.Render(markCh) +
-		pidStyle.Width(pidW).Render(truncate(pidStr, pidW))
+	gutterCell := cursorStyle.Render(cursorCh) + markStyle.Render(markCh)
 
 	cells := []string{
-		pidCell,
+		gutterCell,
 		styledProvider(providerLabel(s), c.provider),
-		styledMCP(mcpLabel(s), c.mcp),
-		projectStyle.Width(c.project).Render(truncate(s.ProjectName, c.project)),
+		projectStyle.Width(c.title).Render(truncate(s.ProjectName, c.title)),
 		styledStatusCell(s, now, c.status, isKilling),
 		actionStyle.Width(c.action).Render(truncate(action, c.action)),
 		durationStyle.Width(c.dur).Render(truncate(dur, c.dur)),
@@ -1292,27 +1306,6 @@ func styledProvider(provider string, width int) string {
 		style = providerStyles["UNKNOWN"]
 	}
 	return style.Width(width).Render(truncate(provider, width))
-}
-
-func styledMCP(label string, width int) string {
-	style := durationStyle
-	switch label {
-	case "ADO ok", "ADO used":
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("#8EC07C")).Bold(true)
-	case "ADO missing":
-		style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8800")).Bold(true)
-	}
-	return style.Width(width).Render(truncate(label, width))
-}
-
-func mcpLabel(s session.State) string {
-	if s.MCPStatus != "" {
-		return s.MCPStatus
-	}
-	if providerLabel(s) == "SYMPHONY" || providerLabel(s) == "COPILOT" {
-		return "ADO ?"
-	}
-	return "—"
 }
 
 func joinCols(cells []string) string {
