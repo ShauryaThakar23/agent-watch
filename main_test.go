@@ -74,7 +74,7 @@ func TestNewScannerSelectsProvider(t *testing.T) {
 		t.Fatalf("expected copilot dir, got %q", copilotScanner.ClaudeDir())
 	}
 
-	symphonyScanner, err := newScanner("symphony", "C:\\tmp\\claude", "C:\\tmp\\copilot", "C:\\tmp\\state.json", "C:\\tmp\\sessions.log", "", "C:\\tmp\\workspaces")
+	symphonyScanner, err := newScanner("symphony", "C:\\tmp\\claude", "C:\\tmp\\copilot", "C:\\tmp\\state.json", "C:\\tmp\\sessions.log", "C:\\tmp\\workspaces")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -64,8 +64,7 @@ agent-watch --provider copilot --copilot-dir /path/to/.copilot
 # Symphony dashboard provider
 agent-watch --provider symphony \
   --symphony-state ~/.symphony/runtime-state.json \
-  --symphony-sessions /path/to/Symphony/symphony-sessions.log \
-  --symphony-workflow /path/to/Symphony/WORKFLOW.md
+  --symphony-sessions /path/to/Symphony/symphony-sessions.log
 
 # Compact mode for narrow tmux panes
 agent-watch --compact
@@ -107,7 +106,6 @@ It reads Symphony's runtime snapshot plus session log:
 agent-watch --provider symphony \
   --symphony-state ~/.symphony/runtime-state.json \
   --symphony-sessions /path/to/Symphony/symphony-sessions.log \
-  --symphony-workflow /path/to/Symphony/WORKFLOW.md \
   --symphony-workspaces ~/.symphony/workspaces
 ```
 
@@ -117,9 +115,7 @@ session, the provider reads `~/.copilot/session-state/<session>/events.jsonl`
 and `inuse.<pid>.lock` to show the current action and enable `g` pane jumps.
 If the selected Symphony session is not inside tmux/psmux, `g` opens a new
 terminal and resumes with
-`agency copilot --organization <org> --project <project> --mcp "ado --organization <org>" -- --yolo --resume <session-id>`.
-The org/project are read from Symphony's per-workspace MCP config or
-`WORKFLOW.md`, with `skype`/`SCC` as the fallback.
+`agency copilot --mcp ado --yolo --resume=<session-id>`.
 
 Symphony resolves sessions in this order:
 

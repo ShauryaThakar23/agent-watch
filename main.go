@@ -37,7 +37,6 @@ func main() {
 	var copilotDir string
 	var symphonyState string
 	var symphonySessions string
-	var symphonyWorkflow string
 	var symphonyWorkspaces string
 	var compact bool
 	var windowsNotifications bool
@@ -58,7 +57,7 @@ complete or error.
 Source: https://github.com/ShauryaThakar23/agent-watch`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if printSessions {
-				return runPrintSessions(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkflow, symphonyWorkspaces)
+				return runPrintSessions(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces)
 			}
 			return run(
 				provider,
@@ -66,7 +65,6 @@ Source: https://github.com/ShauryaThakar23/agent-watch`,
 				copilotDir,
 				symphonyState,
 				symphonySessions,
-				symphonyWorkflow,
 				symphonyWorkspaces,
 				refresh,
 				compact,
@@ -82,7 +80,6 @@ Source: https://github.com/ShauryaThakar23/agent-watch`,
 	rootCmd.Flags().StringVar(&copilotDir, "copilot-dir", defaultCopilotDir(), "Path to Copilot config directory")
 	rootCmd.Flags().StringVar(&symphonyState, "symphony-state", defaultSymphonyStatePath(), "Path to Symphony runtime-state.json")
 	rootCmd.Flags().StringVar(&symphonySessions, "symphony-sessions", "", "Path to Symphony symphony-sessions.log")
-	rootCmd.Flags().StringVar(&symphonyWorkflow, "symphony-workflow", "", "Path to Symphony WORKFLOW.md")
 	rootCmd.Flags().StringVar(&symphonyWorkspaces, "symphony-workspaces", defaultSymphonyWorkspacesDir(), "Path to Symphony workspaces root")
 	rootCmd.Flags().BoolVar(&compact, "compact", false, "Compact mode for narrow terminals")
 	rootCmd.Flags().BoolVar(
@@ -110,7 +107,7 @@ Source: https://github.com/ShauryaThakar23/agent-watch`,
 }
 
 func run(
-	provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkflow, symphonyWorkspaces string,
+	provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces string,
 	refresh time.Duration,
 	compact bool,
 	windowsNotifications bool,
@@ -130,7 +127,7 @@ func run(
 		return fmt.Errorf("--windows-notifications is only supported on Windows")
 	}
 
-	scanner, err := newScanner(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkflow, symphonyWorkspaces)
+	scanner, err := newScanner(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces)
 	if err != nil {
 		return err
 	}
@@ -191,8 +188,8 @@ func runWindowsNotificationTest(notifier notify.Notifier) error {
 
 // runPrintSessions discovers sessions, resolves their panes, and prints a debug
 // table to stdout, then exits. It performs no send-keys and starts no UI.
-func runPrintSessions(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkflow, symphonyWorkspaces string) error {
-	scanner, err := newScanner(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkflow, symphonyWorkspaces)
+func runPrintSessions(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces string) error {
+	scanner, err := newScanner(provider, claudeDir, copilotDir, symphonyState, symphonySessions, symphonyWorkspaces)
 	if err != nil {
 		return err
 	}
@@ -234,7 +231,6 @@ func newScanner(provider, claudeDir, copilotDir string, symphonyArgs ...string) 
 	}
 	symphonyState := defaultSymphonyStatePath()
 	symphonySessions := ""
-	symphonyWorkflow := ""
 	symphonyWorkspaces := defaultSymphonyWorkspacesDir()
 	if len(symphonyArgs) > 0 && symphonyArgs[0] != "" {
 		symphonyState = symphonyArgs[0]
@@ -243,10 +239,7 @@ func newScanner(provider, claudeDir, copilotDir string, symphonyArgs ...string) 
 		symphonySessions = symphonyArgs[1]
 	}
 	if len(symphonyArgs) > 2 && symphonyArgs[2] != "" {
-		symphonyWorkflow = symphonyArgs[2]
-	}
-	if len(symphonyArgs) > 3 && symphonyArgs[3] != "" {
-		symphonyWorkspaces = symphonyArgs[3]
+		symphonyWorkspaces = symphonyArgs[2]
 	}
 	switch normalizedProvider {
 	case "all":
@@ -262,7 +255,6 @@ func newScanner(provider, claudeDir, copilotDir string, symphonyArgs ...string) 
 		return session.NewScannerWithProvider(session.NewSymphonyProvider(session.SymphonyConfig{
 			StatePath:      symphonyState,
 			SessionsPath:   symphonySessions,
-			WorkflowPath:   symphonyWorkflow,
 			WorkspacesRoot: symphonyWorkspaces,
 			CopilotDir:     copilotDir,
 		})), nil

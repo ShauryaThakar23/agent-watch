@@ -21,7 +21,6 @@ import (
 type SymphonyConfig struct {
 	StatePath      string
 	SessionsPath   string
-	WorkflowPath   string
 	WorkspacesRoot string
 	CopilotDir     string
 }
@@ -211,7 +210,6 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 	state.SessionID = resolveSymphonySessionID(known, running, records)
 	state.Cwd = resolveSymphonyWorkspace(p.cfg.WorkspacesRoot, known, running, issueID)
 	state.MCPConfigPath = resolveSymphonyMCPConfigPath(state.Cwd)
-	state.ADOOrganization, state.ADOProject = p.resolveTrackerScope(state.MCPConfigPath)
 	state.ProjectName = symphonyProjectName(known, running, issueID)
 	state.OriginalTask = symphonyOriginalTask(known, issueID)
 	state.LastPrompt = state.OriginalTask
@@ -417,143 +415,6 @@ func resolveSymphonyMCPConfigPath(workspace string) string {
 		return ""
 	}
 	return filepath.Join(workspace, ".symphony", "copilot-mcp-config.json")
-}
-
-func (p *symphonyProvider) resolveTrackerScope(mcpConfigPath string) (string, string) {
-	if org, project := trackerScopeFromMCPConfig(mcpConfigPath); org != "" || project != "" {
-		return defaultIfBlank(org, "skype"), defaultIfBlank(project, "SCC")
-	}
-	if org, project := trackerScopeFromWorkflow(p.workflowPath()); org != "" || project != "" {
-		return defaultIfBlank(org, "skype"), defaultIfBlank(project, "SCC")
-	}
-	return defaultIfBlank(os.Getenv("SYMPHONY_ADO_ORG"), "skype"), defaultIfBlank(os.Getenv("SYMPHONY_ADO_PROJECT"), "SCC")
-}
-
-func (p *symphonyProvider) workflowPath() string {
-	if p.cfg.WorkflowPath != "" {
-		return p.cfg.WorkflowPath
-	}
-	if p.cfg.SessionsPath == "" {
-		return ""
-	}
-	return filepath.Join(filepath.Dir(p.cfg.SessionsPath), "WORKFLOW.md")
-}
-
-func trackerScopeFromMCPConfig(path string) (string, string) {
-	if path == "" {
-		return "", ""
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", ""
-	}
-	var cfg struct {
-		MCPServers map[string]struct {
-			Args []string          `json:"args"`
-			Env  map[string]string `json:"env"`
-		} `json:"mcpServers"`
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return "", ""
-	}
-	var ado struct {
-		Args []string          `json:"args"`
-		Env  map[string]string `json:"env"`
-	}
-	for name, server := range cfg.MCPServers {
-		if strings.EqualFold(name, "azure-devops") {
-			ado = server
-			break
-		}
-	}
-	if len(ado.Args) == 0 && len(ado.Env) == 0 {
-		return "", ""
-	}
-	org := azureDevOpsOrgFromArgs(ado.Args)
-	project := ado.Env["ado_mcp_project"]
-	return org, project
-}
-
-func azureDevOpsOrgFromArgs(args []string) string {
-	for i, arg := range args {
-		if arg != "@azure-devops/mcp" || i+1 >= len(args) {
-			continue
-		}
-		next := strings.TrimSpace(args[i+1])
-		if next != "" && !strings.HasPrefix(next, "-") {
-			return next
-		}
-	}
-	return ""
-}
-
-func trackerScopeFromWorkflow(path string) (string, string) {
-	if path == "" {
-		return "", ""
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", ""
-	}
-	inFrontMatter := false
-	inTracker := false
-	org := ""
-	project := ""
-	for _, raw := range strings.Split(string(data), "\n") {
-		line := strings.TrimRight(raw, "\r")
-		if strings.TrimSpace(line) == "---" {
-			if !inFrontMatter {
-				inFrontMatter = true
-				continue
-			}
-			break
-		}
-		if !inFrontMatter {
-			continue
-		}
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
-			continue
-		}
-		if !strings.HasPrefix(line, " ") && strings.HasSuffix(trimmed, ":") {
-			inTracker = strings.EqualFold(strings.TrimSuffix(trimmed, ":"), "tracker")
-			continue
-		}
-		if !inTracker {
-			continue
-		}
-		key, value, ok := strings.Cut(trimmed, ":")
-		if !ok {
-			continue
-		}
-		value = cleanWorkflowScalar(value)
-		switch strings.ToLower(strings.TrimSpace(key)) {
-		case "organization":
-			org = value
-		case "project":
-			project = value
-		}
-	}
-	return org, project
-}
-
-func cleanWorkflowScalar(value string) string {
-	if beforeComment, _, ok := strings.Cut(value, "#"); ok {
-		value = beforeComment
-	}
-	value = strings.TrimSpace(value)
-	value = strings.Trim(value, `"'`)
-	if strings.HasPrefix(value, "$") {
-		return os.ExpandEnv(value)
-	}
-	return value
-}
-
-func defaultIfBlank(value, fallback string) string {
-	if strings.TrimSpace(value) == "" {
-		return fallback
-	}
-	return value
 }
 
 func sanitizeSymphonyWorkspaceKey(identifier string) string {

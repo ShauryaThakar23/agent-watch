@@ -93,9 +93,6 @@ func TestSymphonyProvider_LoadsRuntimeRowsAndPrefersCurrentPhaseSession(t *testi
 	if state.MCPStatus != "ADO ?" {
 		t.Fatalf("MCPStatus: got %q", state.MCPStatus)
 	}
-	if state.ADOOrganization != "skype" || state.ADOProject != "SCC" {
-		t.Fatalf("ADO scope: got %q/%q, want skype/SCC", state.ADOOrganization, state.ADOProject)
-	}
 }
 
 func TestSymphonyScanner_IncludesRowsWithoutLiveProcess(t *testing.T) {
@@ -256,49 +253,6 @@ func TestDetectAzureDevOpsMCPStatus(t *testing.T) {
 				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestTrackerScopeFromMCPConfig(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "copilot-mcp-config.json")
-	body := `{
-  "mcpServers": {
-    "azure-devops": {
-      "args": ["-y", "@azure-devops/mcp", "skype", "--authentication", "azcli"],
-      "env": { "ado_mcp_project": "SCC" }
-    }
-  }
-}`
-	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	org, project := trackerScopeFromMCPConfig(path)
-	if org != "skype" || project != "SCC" {
-		t.Fatalf("got %q/%q, want skype/SCC", org, project)
-	}
-}
-
-func TestTrackerScopeFromWorkflow(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "WORKFLOW.md")
-	body := `---
-tracker:
-  kind: azure_devops
-  organization: skype
-  project: SCC
-agency:
-  mcps: ["ado --organization skype"]
----
-
-# Workflow
-`
-	if err := os.WriteFile(path, []byte(body), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	org, project := trackerScopeFromWorkflow(path)
-	if org != "skype" || project != "SCC" {
-		t.Fatalf("got %q/%q, want skype/SCC", org, project)
 	}
 }
 
