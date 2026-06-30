@@ -32,28 +32,30 @@ const (
 
 // State holds the derived state for a single Claude Code session.
 type State struct {
-	SessionID      string
-	Provider       string
-	PID            int // OS process ID if the session has a running claude process
-	FilePath       string
-	ProjectName    string
-	Cwd            string
-	TmuxSession    string // "session/window" from tmux/psmux, or ""
-	TmuxPaneID     string // tmux pane unique ID for navigation, e.g. "%5"
-	TmuxSendTarget string // fully-qualified "session:window.pane" for send-keys, or ""
-	MCPConfigPath  string
-	OriginalTask   string
-	LastPrompt     string
-	LastResponse   string
-	CurrentAction  string
-	MCPStatus      string
-	Status         Status
-	CompletedAt    time.Time
-	Model          string
-	StartTime      time.Time
-	LastUpdate     time.Time
-	FileOffset     int64
-	FileModTime    time.Time
+	SessionID       string
+	Provider        string
+	PID             int // OS process ID if the session has a running claude process
+	FilePath        string
+	ProjectName     string
+	Cwd             string
+	TmuxSession     string // "session/window" from tmux/psmux, or ""
+	TmuxPaneID      string // tmux pane unique ID for navigation, e.g. "%5"
+	TmuxSendTarget  string // fully-qualified "session:window.pane" for send-keys, or ""
+	MCPConfigPath   string
+	OriginalTask    string
+	LastPrompt      string
+	LastResponse    string
+	CurrentAction   string
+	MCPStatus       string
+	ADOOrganization string
+	ADOProject      string
+	Status          Status
+	CompletedAt     time.Time
+	Model           string
+	StartTime       time.Time
+	LastUpdate      time.Time
+	FileOffset      int64
+	FileModTime     time.Time
 
 	// Cached from last record for re-deriving status after PID changes
 	LastRecordType           string

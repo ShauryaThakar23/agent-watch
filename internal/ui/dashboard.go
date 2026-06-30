@@ -1548,9 +1548,35 @@ func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (str
 
 func resumeCommandForSession(s session.State) string {
 	if strings.EqualFold(s.Provider, "symphony") {
-		return fmt.Sprintf("agency copilot --mcp \"ado --organization skype\" -- --yolo --resume %s", s.SessionID)
+		return symphonyResumeCommand(s)
 	}
 	return fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
+}
+
+func symphonyResumeCommand(s session.State) string {
+	org := defaultString(s.ADOOrganization, "skype")
+	project := defaultString(s.ADOProject, "SCC")
+	return fmt.Sprintf(
+		"agency copilot --organization %s --project %s --mcp %s -- --yolo --resume %s",
+		quotePowerShellArg(org),
+		quotePowerShellArg(project),
+		quotePowerShellArg(fmt.Sprintf("ado --organization %s", org)),
+		s.SessionID,
+	)
+}
+
+func defaultString(value, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func quotePowerShellArg(value string) string {
+	if value != "" && !strings.ContainsAny(value, " '\"`") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func filterSessions(sessions []session.State, provider string) []session.State {

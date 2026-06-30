@@ -64,7 +64,8 @@ agent-watch --provider copilot --copilot-dir /path/to/.copilot
 # Symphony dashboard provider
 agent-watch --provider symphony \
   --symphony-state ~/.symphony/runtime-state.json \
-  --symphony-sessions /path/to/Symphony/symphony-sessions.log
+  --symphony-sessions /path/to/Symphony/symphony-sessions.log \
+  --symphony-workflow /path/to/Symphony/WORKFLOW.md
 
 # Compact mode for narrow tmux panes
 agent-watch --compact
@@ -106,6 +107,7 @@ It reads Symphony's runtime snapshot plus session log:
 agent-watch --provider symphony \
   --symphony-state ~/.symphony/runtime-state.json \
   --symphony-sessions /path/to/Symphony/symphony-sessions.log \
+  --symphony-workflow /path/to/Symphony/WORKFLOW.md \
   --symphony-workspaces ~/.symphony/workspaces
 ```
 
@@ -115,8 +117,9 @@ session, the provider reads `~/.copilot/session-state/<session>/events.jsonl`
 and `inuse.<pid>.lock` to show the current action and enable `g` pane jumps.
 If the selected Symphony session is not inside tmux/psmux, `g` opens a new
 terminal and resumes with
-`agency copilot --mcp "ado --organization skype" -- --yolo --resume <session-id>`,
-so the resumed agency session is started with Azure DevOps MCP.
+`agency copilot --organization <org> --project <project> --mcp "ado --organization <org>" -- --yolo --resume <session-id>`.
+The org/project are read from Symphony's per-workspace MCP config or
+`WORKFLOW.md`, with `skype`/`SCC` as the fallback.
 
 Symphony resolves sessions in this order:
 
