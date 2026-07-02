@@ -1525,6 +1525,9 @@ func killProcess(pid int) error {
 
 func openSessionInNewTerminal(s session.State) error {
 	if s.SessionID == "" {
+		s.SessionID = resolveSessionIDForEntry(s)
+	}
+	if s.SessionID == "" {
 		return fmt.Errorf("selected row has no session id yet")
 	}
 	if runtime.GOOS != "windows" {
@@ -1541,6 +1544,103 @@ func openSessionInNewTerminal(s session.State) error {
 	// resumed Copilot session.
 	name, args := windowsTerminalResumeCommand(s, false)
 	return exec.Command(name, args...).Start()
+}
+
+func resolveSessionIDForEntry(s session.State) string {
+	if s.SessionID != "" {
+		return s.SessionID
+	}
+	if sid := sessionIDFromCopilotStatePath(s.FilePath); sid != "" {
+		return sid
+	}
+	if s.PID > 0 {
+		return sessionIDFromCopilotLockPID(s.PID, candidateCopilotDirs(s))
+	}
+	return ""
+}
+
+func sessionIDFromCopilotStatePath(path string) string {
+	if path == "" {
+		return ""
+	}
+	clean := filepath.Clean(path)
+	if !strings.EqualFold(filepath.Base(clean), "events.jsonl") {
+		return ""
+	}
+	sessionDir := filepath.Dir(clean)
+	if !strings.EqualFold(filepath.Base(filepath.Dir(sessionDir)), "session-state") {
+		return ""
+	}
+	return filepath.Base(sessionDir)
+}
+
+func sessionIDFromCopilotLockPID(pid int, copilotDirs []string) string {
+	if pid <= 0 {
+		return ""
+	}
+	lockName := fmt.Sprintf("inuse.%d.lock", pid)
+	for _, dir := range copilotDirs {
+		if dir == "" {
+			continue
+		}
+		sessionsDir := filepath.Join(dir, "session-state")
+		entries, err := os.ReadDir(sessionsDir)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			lockPath := filepath.Join(sessionsDir, entry.Name(), lockName)
+			if info, err := os.Stat(lockPath); err == nil && !info.IsDir() {
+				return entry.Name()
+			}
+		}
+	}
+	return ""
+}
+
+func candidateCopilotDirs(s session.State) []string {
+	seen := make(map[string]struct{})
+	var dirs []string
+	add := func(dir string) {
+		if dir == "" {
+			return
+		}
+		dir = filepath.Clean(dir)
+		key := strings.ToLower(dir)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		dirs = append(dirs, dir)
+	}
+
+	if dir := copilotDirFromPath(s.FilePath); dir != "" {
+		add(dir)
+	}
+	if appData := os.Getenv("APPDATA"); runtime.GOOS == "windows" && appData != "" {
+		add(filepath.Join(appData, ".copilot"))
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		add(filepath.Join(home, ".copilot"))
+	}
+	return dirs
+}
+
+func copilotDirFromPath(path string) string {
+	if path == "" {
+		return ""
+	}
+	clean := filepath.Clean(path)
+	parts := strings.Split(clean, string(filepath.Separator))
+	for i, part := range parts {
+		if strings.EqualFold(part, ".copilot") {
+			return strings.Join(parts[:i+1], string(filepath.Separator))
+		}
+	}
+	return ""
 }
 
 func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (string, []string) {

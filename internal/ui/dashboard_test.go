@@ -5,6 +5,8 @@
 package ui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -1100,6 +1102,30 @@ func TestWindowsTerminalResumeCommand_NonSymphonyKeepsRawResume(t *testing.T) {
 	}
 	if strings.Contains(got, "--mcp") {
 		t.Fatalf("did not expect MCP flag for non-Symphony args %q", got)
+	}
+}
+
+func TestResolveSessionIDForEntry_FromCopilotEventsPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".copilot", "session-state", "sess-123", "events.jsonl")
+	s := session.State{FilePath: path}
+
+	if got := resolveSessionIDForEntry(s); got != "sess-123" {
+		t.Fatalf("got %q, want sess-123", got)
+	}
+}
+
+func TestSessionIDFromCopilotLockPID(t *testing.T) {
+	copilotDir := filepath.Join(t.TempDir(), ".copilot")
+	sessionDir := filepath.Join(copilotDir, "session-state", "sess-456")
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sessionDir, "inuse.25712.lock"), []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := sessionIDFromCopilotLockPID(25712, []string{copilotDir}); got != "sess-456" {
+		t.Fatalf("got %q, want sess-456", got)
 	}
 }
 
