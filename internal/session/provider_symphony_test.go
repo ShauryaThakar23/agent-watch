@@ -139,6 +139,49 @@ func TestSymphonyScanner_IncludesRowsWithoutLiveProcess(t *testing.T) {
 	}
 }
 
+func TestSymphonyProvider_RunningRowFallsBackToLatestSessionId(t *testing.T) {
+	base := time.Date(2026, 7, 2, 7, 45, 0, 0, time.UTC)
+	root := t.TempDir()
+	statePath := filepath.Join(root, "runtime-state.json")
+	runtimeJSON := fmt.Sprintf(`{
+		"GeneratedAt": %q,
+		"OrchestratorPid": 123,
+		"Running": [{
+			"IssueId": "4609444",
+			"IssueIdentifier": "SCC-4609444",
+			"Phase": "Implementing",
+			"WorkspacePath": %q,
+			"SessionId": ""
+		}],
+		"Retrying": [],
+		"Known": [{
+			"IssueId": "4609444",
+			"Identifier": "SCC-4609444",
+			"Title": "Admin net8 Cosmic pods crash-loop",
+			"LastPhase": "Implementing",
+			"Status": "Running",
+			"LastUpdate": %q,
+			"LatestSessionId": "latest-session"
+		}]
+	}`, base.Format(time.RFC3339Nano), filepath.Join(root, "workspaces", "SCC-4609444"), base.Format(time.RFC3339Nano))
+	if err := os.WriteFile(statePath, []byte(runtimeJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := NewSymphonyProvider(SymphonyConfig{
+		StatePath:      statePath,
+		WorkspacesRoot: filepath.Join(root, "workspaces"),
+		CopilotDir:     filepath.Join(root, ".copilot"),
+	})
+	state, err := provider.LoadSession(statePath+"#4609444", State{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.SessionID != "latest-session" {
+		t.Fatalf("SessionID: got %q, want latest-session", state.SessionID)
+	}
+}
+
 func TestSymphonyProvider_RetryRowsShowRetryStatus(t *testing.T) {
 	base := time.Date(2026, 6, 22, 19, 0, 0, 0, time.UTC)
 	root := t.TempDir()

@@ -204,6 +204,16 @@ func TestIsCopilotCommand(t *testing.T) {
 	}
 }
 
+func TestIsAgencySummaryCopilot(t *testing.T) {
+	cmd := `"C:\Users\me\AppData\Local\Microsoft\copilot.exe" --session-id temp-summary --silent --log-dir C:\Users\me\AppData\Local\Temp\.tmp123\session-insights --disable-builtin-mcps --disable-mcp-server azure-devops`
+	if !isAgencySummaryCopilot(cmd) {
+		t.Fatal("expected agency summary copilot process to be detected")
+	}
+	if isAgencySummaryCopilot(`copilot --session-id real-session --resume`) {
+		t.Fatal("did not expect normal copilot process to be detected as summary helper")
+	}
+}
+
 func TestIsClaudeCommand(t *testing.T) {
 	tests := []struct {
 		name     string

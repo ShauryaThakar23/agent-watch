@@ -157,6 +157,9 @@ func listWindowsCopilot() ([]Info, error) {
 		if !isCopilotCommand(procName, cmdLine) {
 			continue
 		}
+		if isAgencySummaryCopilot(cmdLine) {
+			continue
+		}
 		info.SessionID = extractCopilotSessionID(cmdLine)
 		results = append(results, info)
 	}
@@ -200,6 +203,9 @@ func listUnixCopilot() ([]Info, error) {
 			continue
 		}
 		if !isCopilotCommand("", cmdLine) {
+			continue
+		}
+		if isAgencySummaryCopilot(cmdLine) {
 			continue
 		}
 		info.SessionID = extractCopilotSessionID(cmdLine)
@@ -374,6 +380,13 @@ func isCopilotCommand(procName, cmdLine string) bool {
 		return true
 	}
 	return false
+}
+
+func isAgencySummaryCopilot(cmdLine string) bool {
+	lower := strings.ToLower(cmdLine)
+	return strings.Contains(lower, "session-insights") ||
+		strings.Contains(lower, "--disable-builtin-mcps") ||
+		strings.Contains(lower, "summarize-session")
 }
 
 func isClaudeCommand(procName, cmdLine string) bool {
