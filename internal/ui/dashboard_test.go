@@ -112,8 +112,8 @@ func TestRender_WithSessions(t *testing.T) {
 	if !strings.Contains(output, "PROVIDER") {
 		t.Error("expected column header PROVIDER")
 	}
-	if strings.Contains(output, "PID") {
-		t.Error("did not expect PID column header")
+	if !strings.Contains(output, "PID") {
+		t.Error("expected column header PID")
 	}
 	if strings.Contains(output, "MCP") {
 		t.Error("did not expect MCP column header")

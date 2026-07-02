@@ -33,6 +33,7 @@ var (
 	tmuxStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#9EC8E0")) // Soft cyan
 	actionStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
 	durationStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	pidStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cursorStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D4A0FF")) // Bright arrow indicator
 	markStyle      = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFD700")) // Gold selection marker
 	helpKeyStyle   = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#6CB6FF")) // Soft blue for keys
@@ -61,7 +62,7 @@ var (
 
 // cols holds computed column widths for a render pass.
 type cols struct {
-	gutter   int
+	pid      int
 	tmux     int
 	provider int
 	title    int
@@ -99,7 +100,7 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	}
 
 	c := cols{
-		gutter:   2,
+		pid:      len("PID") + 2,
 		provider: len("PROVIDER") + 2,
 		status:   len("STATUS") + 2,
 		dur:      len("DURATION") + 2,
@@ -113,6 +114,13 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	}
 
 	for _, s := range sessions {
+		pidStr := ""
+		if s.PID > 0 {
+			pidStr = fmt.Sprintf("%d", s.PID)
+		}
+		if w := len(pidStr) + 2; w > c.pid {
+			c.pid = w
+		}
 		dur := ""
 		if !s.StartTime.IsZero() {
 			dur = session.FormatDuration(now.Sub(s.StartTime))
@@ -160,7 +168,7 @@ func computeCols(sessions []session.State, now time.Time, termW int) cols {
 	}
 	separators := (numCols - 1) * 3
 
-	fixed := c.gutter + c.provider + c.status + c.dur + idealTmux + separators
+	fixed := c.pid + c.provider + c.status + c.dur + idealTmux + separators
 	avail := termW - fixed
 	minAction := len("ACTION") + 2
 	minProvider := len("PROV") + 2
@@ -476,6 +484,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.statusMsg = fmt.Sprintf("Switched to %s", s.TmuxSession)
 					m.statusExp = time.Now().Add(3 * time.Second)
 				} else {
+					if openErr := openSessionInNewTerminal(s); openErr == nil {
+						m.statusMsg = fmt.Sprintf("Pane switch failed; opened %s in a new terminal", displayProjectName(s))
+						m.statusExp = time.Now().Add(5 * time.Second)
+						break
+					}
 					// Programmatic switch failed — show manual navigation hint
 					parts := strings.SplitN(s.TmuxSession, "/", 2)
 					hint := "Ctrl+B, s"
@@ -537,9 +550,9 @@ func (m Model) layout(now time.Time) (top, body, footer []string, spans []rowSpa
 	}
 	titleParts = append(titleParts, timestamp)
 
-	widths := []int{c.gutter, c.provider, c.title, c.status, c.action, c.dur}
+	widths := []int{c.pid, c.provider, c.title, c.status, c.action, c.dur}
 	headers := []string{
-		colHeaderStyle.Width(c.gutter).Render(""),
+		colHeaderStyle.Width(c.pid).Render(truncate("PID", c.pid)),
 		colHeaderStyle.Width(c.provider).Render(truncate("PROVIDER", c.provider)),
 		colHeaderStyle.Width(c.title).Render(truncate("TITLE", c.title)),
 		colHeaderStyle.Width(c.status).Render(truncate("STATUS", c.status)),
@@ -1241,7 +1254,12 @@ func renderRow(s session.State, now time.Time, c cols, isCursor, isMarked, isKil
 	if isKilling {
 		action = "Killing…"
 	}
-	// Two-char gutter keeps cursor and broadcast selection visible without a PID column.
+	pidStr := ""
+	if s.PID > 0 {
+		pidStr = fmt.Sprintf("%d", s.PID)
+	}
+
+	// Two-char gutter precedes the PID value: a cursor caret and a mark glyph.
 	cursorCh := " "
 	if isCursor {
 		cursorCh = ">"
@@ -1250,10 +1268,12 @@ func renderRow(s session.State, now time.Time, c cols, isCursor, isMarked, isKil
 	if isMarked {
 		markCh = "*"
 	}
-	gutterCell := cursorStyle.Render(cursorCh) + markStyle.Render(markCh)
+	pidW := max(1, c.pid-2)
+	pidCell := cursorStyle.Render(cursorCh) + markStyle.Render(markCh) +
+		pidStyle.Width(pidW).Render(truncate(pidStr, pidW))
 
 	cells := []string{
-		gutterCell,
+		pidCell,
 		styledProvider(providerLabel(s), c.provider),
 		projectStyle.Width(c.title).Render(truncate(s.ProjectName, c.title)),
 		styledStatusCell(s, now, c.status, isKilling),

@@ -126,7 +126,7 @@ Symphony resolves sessions in this order:
 
 ## Dashboard columns
 
-- The unlabeled first column shows the cursor (`>`) and broadcast selection marker (`*`).
+- **PID** — the OS process ID of the running process. A `>` marker highlights the cursor and `*` marks broadcast selection.
 - **TMUX SESSION/WINDOW** — the `session/window` name when the session is running inside tmux, psmux, or pmux. Hidden automatically when no session is in a multiplexer.
 - **PROVIDER** — `CLAUDE` or `COPILOT`, shown as a badge for each row.
 - **TITLE** — the session/project title or Symphony work-item title.
