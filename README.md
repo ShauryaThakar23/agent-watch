@@ -120,7 +120,10 @@ terminal and resumes with
 `agency copilot --mcp ado --yolo --resume=<session-id>`.
 Before launching, agent-watch materializes the selected row's phase skill bundle
 from Symphony `WORKFLOW.md` into the workspace `AGENTS.md`, matching Symphony's
-own Copilot dispatch mechanism.
+own Copilot dispatch mechanism. It also defaults Agency `--plugin-dir` to the
+Symphony worktree's `copilot/plugins/rtc-infra-dev`,
+`copilot/plugins/rtc-infra-livesite`, and
+`copilot/plugins/rtc-infra-essentials` directories when they exist.
 
 Symphony resolves sessions in this order:
 

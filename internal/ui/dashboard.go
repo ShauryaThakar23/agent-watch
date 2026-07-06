@@ -1801,7 +1801,54 @@ func resumeCommandForSession(s session.State) string {
 }
 
 func symphonyResumeCommand(s session.State) string {
-	return fmt.Sprintf("agency copilot --mcp ado --yolo --resume=%s", s.SessionID)
+	args := []string{"agency", "copilot"}
+	for _, dir := range symphonyPluginDirs(s.SymphonyWorkflowPath) {
+		args = append(args, "--plugin-dir", quotePowerShellArg(dir))
+	}
+	args = append(args, "--mcp", "ado", "--yolo", fmt.Sprintf("--resume=%s", s.SessionID))
+	return strings.Join(args, " ")
+}
+
+func symphonyPluginDirs(workflowPath string) []string {
+	root := symphonyRepoRoot(workflowPath)
+	if root == "" {
+		return nil
+	}
+	pluginsRoot := filepath.Join(root, "copilot", "plugins")
+	names := []string{"rtc-infra-dev", "rtc-infra-livesite", "rtc-infra-essentials"}
+	dirs := make([]string, 0, len(names))
+	for _, name := range names {
+		dir := filepath.Join(pluginsRoot, name)
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			dirs = append(dirs, dir)
+		}
+	}
+	return dirs
+}
+
+func symphonyRepoRoot(workflowPath string) string {
+	if workflowPath == "" {
+		return ""
+	}
+	dir := filepath.Dir(filepath.Clean(workflowPath))
+	for i := 0; i < 4 && dir != "." && dir != string(filepath.Separator); i++ {
+		if info, err := os.Stat(filepath.Join(dir, "copilot", "plugins")); err == nil && info.IsDir() {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
+}
+
+func quotePowerShellArg(value string) string {
+	if value != "" && !strings.ContainsAny(value, " '\"`") {
+		return value
+	}
+	return "'" + strings.ReplaceAll(value, "'", "''") + "'"
 }
 
 func filterSessions(sessions []session.State, provider string) []session.State {

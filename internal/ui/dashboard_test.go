@@ -1058,11 +1058,22 @@ func TestBroadcast_SkipsSelfPane(t *testing.T) {
 }
 
 func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
+	root := t.TempDir()
+	workflow := filepath.Join(root, "Symphony", "WORKFLOW.md")
+	if err := os.MkdirAll(filepath.Dir(workflow), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"rtc-infra-dev", "rtc-infra-livesite", "rtc-infra-essentials"} {
+		if err := os.MkdirAll(filepath.Join(root, "copilot", "plugins", name), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
 	s := session.State{
-		SessionID:   "abc-123",
-		Provider:    "symphony",
-		Cwd:         `C:\Users\me\.symphony\workspaces\SCC-1`,
-		ProjectName: "SCC-1 test",
+		SessionID:            "abc-123",
+		Provider:             "symphony",
+		Cwd:                  `C:\Users\me\.symphony\workspaces\SCC-1`,
+		ProjectName:          "SCC-1 test",
+		SymphonyWorkflowPath: workflow,
 	}
 
 	name, args := windowsTerminalResumeCommand(s, true)
@@ -1070,7 +1081,16 @@ func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
 		t.Fatalf("expected wt, got %q", name)
 	}
 	got := strings.Join(args, " ")
-	for _, want := range []string{"new-tab", "SCC-1 test", s.Cwd, "agency copilot --mcp ado --yolo --resume=abc-123"} {
+	for _, want := range []string{
+		"new-tab",
+		"SCC-1 test",
+		s.Cwd,
+		"agency copilot",
+		"--plugin-dir " + filepath.Join(root, "copilot", "plugins", "rtc-infra-dev"),
+		"--plugin-dir " + filepath.Join(root, "copilot", "plugins", "rtc-infra-livesite"),
+		"--plugin-dir " + filepath.Join(root, "copilot", "plugins", "rtc-infra-essentials"),
+		"--mcp ado --yolo --resume=abc-123",
+	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
 		}
@@ -1195,6 +1215,29 @@ func TestMaterializeSymphonyAgentsFile(t *testing.T) {
 	}
 	if got := string(data); got != "first skill\n\n---\n\nsecond skill" {
 		t.Fatalf("unexpected AGENTS.md contents: %q", got)
+	}
+}
+
+func TestSymphonyResumeCommand_OmitsMissingPluginDirs(t *testing.T) {
+	root := t.TempDir()
+	workflow := filepath.Join(root, "Symphony", "WORKFLOW.md")
+	if err := os.MkdirAll(filepath.Dir(workflow), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(root, "copilot", "plugins", "rtc-infra-dev"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := symphonyResumeCommand(session.State{
+		SessionID:            "abc-123",
+		Provider:             "symphony",
+		SymphonyWorkflowPath: workflow,
+	})
+	if !strings.Contains(cmd, "--plugin-dir "+filepath.Join(root, "copilot", "plugins", "rtc-infra-dev")) {
+		t.Fatalf("expected rtc-infra-dev plugin dir in %q", cmd)
+	}
+	if strings.Contains(cmd, "rtc-infra-livesite") || strings.Contains(cmd, "rtc-infra-essentials") {
+		t.Fatalf("did not expect missing plugin dirs in %q", cmd)
 	}
 }
 
