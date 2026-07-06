@@ -21,6 +21,7 @@ import (
 type SymphonyConfig struct {
 	StatePath      string
 	SessionsPath   string
+	WorkflowPath   string
 	WorkspacesRoot string
 	CopilotDir     string
 }
@@ -210,6 +211,8 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 	state.SessionID = resolveSymphonySessionID(known, running, records)
 	state.Cwd = resolveSymphonyWorkspace(p.cfg.WorkspacesRoot, known, running, issueID)
 	state.MCPConfigPath = resolveSymphonyMCPConfigPath(state.Cwd)
+	state.SymphonyPhase = resolveSymphonyPhase(known, running)
+	state.SymphonyWorkflowPath = p.workflowPath()
 	state.ProjectName = symphonyProjectName(known, running, issueID)
 	state.OriginalTask = symphonyOriginalTask(known, issueID)
 	state.LastPrompt = state.OriginalTask
@@ -415,6 +418,26 @@ func resolveSymphonyMCPConfigPath(workspace string) string {
 		return ""
 	}
 	return filepath.Join(workspace, ".symphony", "copilot-mcp-config.json")
+}
+
+func resolveSymphonyPhase(known *symphonyKnownRow, running *symphonyRunningRow) string {
+	if running != nil && running.Phase != "" {
+		return running.Phase
+	}
+	if known != nil {
+		return known.LastPhase
+	}
+	return ""
+}
+
+func (p *symphonyProvider) workflowPath() string {
+	if p.cfg.WorkflowPath != "" {
+		return p.cfg.WorkflowPath
+	}
+	if p.cfg.SessionsPath == "" {
+		return ""
+	}
+	return filepath.Join(filepath.Dir(p.cfg.SessionsPath), "WORKFLOW.md")
 }
 
 func sanitizeSymphonyWorkspaceKey(identifier string) string {

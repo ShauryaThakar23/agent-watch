@@ -1129,6 +1129,75 @@ func TestSessionIDFromCopilotLockPID(t *testing.T) {
 	}
 }
 
+func TestSymphonySkillPathsForPhase(t *testing.T) {
+	root := t.TempDir()
+	planSkill := filepath.Join(root, "plan.md")
+	taskSkill := filepath.Join(root, "task.md")
+	watcherSkill := filepath.Join(root, "watcher.md")
+	workflow := filepath.Join(root, "WORKFLOW.md")
+	body := "---\n" +
+		"agency:\n" +
+		"  skills:\n" +
+		"    planning:\n" +
+		"      - " + filepath.ToSlash(planSkill) + "\n" +
+		"    implementing:\n" +
+		"      - " + filepath.ToSlash(taskSkill) + "\n" +
+		"      - " + filepath.ToSlash(watcherSkill) + "\n" +
+		"---\n"
+	if err := os.WriteFile(workflow, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := symphonySkillPathsForPhase(workflow, "Implementing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0] != filepath.FromSlash(filepath.ToSlash(taskSkill)) || got[1] != filepath.FromSlash(filepath.ToSlash(watcherSkill)) {
+		t.Fatalf("unexpected skill paths: %#v", got)
+	}
+}
+
+func TestMaterializeSymphonyAgentsFile(t *testing.T) {
+	root := t.TempDir()
+	workspace := filepath.Join(root, "workspace")
+	firstSkill := filepath.Join(root, "first.md")
+	secondSkill := filepath.Join(root, "second.md")
+	workflow := filepath.Join(root, "WORKFLOW.md")
+	if err := os.WriteFile(firstSkill, []byte("first skill\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(secondSkill, []byte("second skill\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	body := "---\n" +
+		"agency:\n" +
+		"  skills:\n" +
+		"    validating:\n" +
+		"      - " + filepath.ToSlash(firstSkill) + "\n" +
+		"      - " + filepath.ToSlash(secondSkill) + "\n" +
+		"---\n"
+	if err := os.WriteFile(workflow, []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := materializeSymphonyAgentsFile(session.State{
+		Provider:             "symphony",
+		Cwd:                  workspace,
+		SymphonyPhase:        "Validating",
+		SymphonyWorkflowPath: workflow,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(workspace, "AGENTS.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(data); got != "first skill\n\n---\n\nsecond skill" {
+		t.Fatalf("unexpected AGENTS.md contents: %q", got)
+	}
+}
+
 // TestMark_SelectAllExcludesSelfPane verifies 'v' does not mark the dashboard's
 // own pane.
 func TestMark_SelectAllExcludesSelfPane(t *testing.T) {

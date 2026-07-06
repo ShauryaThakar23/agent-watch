@@ -1530,6 +1530,9 @@ func openSessionInNewTerminal(s session.State) error {
 	if s.SessionID == "" {
 		return fmt.Errorf("selected row has no session id yet")
 	}
+	if err := materializeSymphonyAgentsFile(s); err != nil {
+		return err
+	}
 	if runtime.GOOS != "windows" {
 		return fmt.Errorf("session not in tmux; run manually: %s", resumeCommandForSession(s))
 	}
@@ -1641,6 +1644,137 @@ func copilotDirFromPath(path string) string {
 		}
 	}
 	return ""
+}
+
+func materializeSymphonyAgentsFile(s session.State) error {
+	if !strings.EqualFold(s.Provider, "symphony") {
+		return nil
+	}
+	if s.Cwd == "" || s.SymphonyWorkflowPath == "" || s.SymphonyPhase == "" {
+		return nil
+	}
+	skillPaths, err := symphonySkillPathsForPhase(s.SymphonyWorkflowPath, s.SymphonyPhase)
+	if err != nil {
+		return err
+	}
+	if len(skillPaths) == 0 {
+		return nil
+	}
+
+	parts := make([]string, 0, len(skillPaths))
+	for _, path := range skillPaths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read Symphony skill %s: %w", path, err)
+		}
+		parts = append(parts, strings.TrimRight(string(data), "\r\n"))
+	}
+	if err := os.MkdirAll(s.Cwd, 0755); err != nil {
+		return fmt.Errorf("create Symphony workspace %s: %w", s.Cwd, err)
+	}
+	return os.WriteFile(filepath.Join(s.Cwd, "AGENTS.md"), []byte(strings.Join(parts, "\n\n---\n\n")), 0644)
+}
+
+func symphonySkillPathsForPhase(workflowPath, phase string) ([]string, error) {
+	data, err := os.ReadFile(workflowPath)
+	if err != nil {
+		return nil, fmt.Errorf("read Symphony workflow %s: %w", workflowPath, err)
+	}
+	target := strings.ToLower(strings.TrimSpace(phase))
+	inFrontMatter := false
+	inAgency := false
+	inSkills := false
+	inPhase := false
+	agencyIndent := -1
+	skillsIndent := -1
+	phaseIndent := -1
+	var paths []string
+
+	for _, raw := range strings.Split(string(data), "\n") {
+		line := strings.TrimRight(raw, "\r")
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			if !inFrontMatter {
+				inFrontMatter = true
+				continue
+			}
+			break
+		}
+		if !inFrontMatter || trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		indent := leadingSpaces(line)
+		key := yamlKey(trimmed)
+
+		if indent == 0 && key != "" {
+			inAgency = key == "agency"
+			inSkills = false
+			inPhase = false
+			if inAgency {
+				agencyIndent = indent
+			}
+			continue
+		}
+		if !inAgency {
+			continue
+		}
+		if indent <= agencyIndent && key != "" {
+			inAgency = false
+			inSkills = false
+			inPhase = false
+			continue
+		}
+		if key == "skills" && indent > agencyIndent {
+			inSkills = true
+			inPhase = false
+			skillsIndent = indent
+			continue
+		}
+		if !inSkills {
+			continue
+		}
+		if key != "" && indent <= skillsIndent {
+			inSkills = false
+			inPhase = false
+			continue
+		}
+		if key != "" && indent > skillsIndent {
+			inPhase = key == target
+			phaseIndent = indent
+			continue
+		}
+		if inPhase && indent > phaseIndent && strings.HasPrefix(trimmed, "- ") {
+			value := cleanYAMLScalar(strings.TrimSpace(strings.TrimPrefix(trimmed, "- ")))
+			if value != "" {
+				paths = append(paths, filepath.FromSlash(value))
+			}
+		}
+	}
+	return paths, nil
+}
+
+func leadingSpaces(s string) int {
+	return len(s) - len(strings.TrimLeft(s, " "))
+}
+
+func yamlKey(trimmed string) string {
+	if strings.HasPrefix(trimmed, "- ") {
+		return ""
+	}
+	key, rest, ok := strings.Cut(trimmed, ":")
+	if !ok || strings.TrimSpace(rest) != "" {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(key))
+}
+
+func cleanYAMLScalar(value string) string {
+	if beforeComment, _, ok := strings.Cut(value, "#"); ok {
+		value = beforeComment
+	}
+	value = strings.TrimSpace(value)
+	value = strings.Trim(value, `"'`)
+	return os.ExpandEnv(value)
 }
 
 func windowsTerminalResumeCommand(s session.State, useWindowsTerminal bool) (string, []string) {
