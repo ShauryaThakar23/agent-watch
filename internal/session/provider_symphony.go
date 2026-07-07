@@ -104,6 +104,8 @@ func (p *symphonyProvider) BaseDir() string { return filepath.Dir(p.cfg.StatePat
 
 func (p *symphonyProvider) SessionsDir() string { return filepath.Dir(p.cfg.StatePath) }
 
+func (p *symphonyProvider) SessionsDirs() []string { return nil }
+
 func (p *symphonyProvider) RefreshExistingOnTick() bool { return true }
 
 func (p *symphonyProvider) DiscoverOnTick() bool { return true }

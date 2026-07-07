@@ -139,6 +139,18 @@ func TestSymphonyScanner_IncludesRowsWithoutLiveProcess(t *testing.T) {
 	}
 }
 
+func TestSymphonyScanner_DisablesRecursiveFileWatches(t *testing.T) {
+	scanner := NewScannerWithProvider(NewSymphonyProvider(SymphonyConfig{
+		StatePath:      filepath.Join(t.TempDir(), "runtime-state.json"),
+		WorkspacesRoot: filepath.Join(t.TempDir(), "workspaces"),
+		CopilotDir:     filepath.Join(t.TempDir(), ".copilot"),
+	}))
+
+	if got := scanner.SessionsDirs(); len(got) != 0 {
+		t.Fatalf("expected no watched session dirs for Symphony provider, got %#v", got)
+	}
+}
+
 func TestSymphonyProvider_RunningRowFallsBackToLatestSessionId(t *testing.T) {
 	base := time.Date(2026, 7, 2, 7, 45, 0, 0, time.UTC)
 	root := t.TempDir()

@@ -69,10 +69,7 @@ type includeInactiveProvider interface {
 // SessionsDirs returns all session roots for the active provider.
 func (s *Scanner) SessionsDirs() []string {
 	if provider, ok := s.provider.(sessionsDirsProvider); ok {
-		dirs := provider.SessionsDirs()
-		if len(dirs) > 0 {
-			return dirs
-		}
+		return provider.SessionsDirs()
 	}
 	return []string{s.provider.SessionsDir()}
 }
