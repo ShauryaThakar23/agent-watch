@@ -263,8 +263,9 @@ type tickMsg time.Time
 type sortMode string
 
 const (
-	sortModeProject sortMode = "project"
-	sortModeRecent  sortMode = "recent"
+	sortModeProject   sortMode = "project"
+	sortModeRecent    sortMode = "recent"
+	sortModeStackRank sortMode = "stackrank"
 )
 
 // Model is the Bubbletea model for the agent-watch dashboard.
@@ -307,13 +308,13 @@ func NewModel(
 	notificationsEnabled bool,
 ) Model {
 	sessions := scanner.RunningSessions()
-	sortSessions(sessions, sortModeProject)
+	sortSessions(sessions, sortModeStackRank)
 	m := Model{
 		scanner:               scanner,
 		compact:               compact,
 		refresh:               refresh,
 		providerFilter:        "all",
-		sortMode:              sortModeProject,
+		sortMode:              sortModeStackRank,
 		sessions:              sessions,
 		expanded:              make(map[int]bool),
 		termW:                 120,
@@ -1236,7 +1237,7 @@ func Render(sessions []session.State, compact bool) string {
 		sessions:       sessions,
 		compact:        compact,
 		providerFilter: "all",
-		sortMode:       sortModeProject,
+		sortMode:       sortModeStackRank,
 		expanded:       make(map[int]bool),
 		termW:          120,
 		termH:          40,
@@ -1460,8 +1461,8 @@ func providerRank(s session.State) int {
 func (m *Model) toggleSortMode() {
 	switch m.sortMode {
 	case sortModeRecent:
-		m.sortMode = sortModeProject
-		m.setStatusMessage("Sort: project (A-Z)", 2*time.Second)
+		m.sortMode = sortModeStackRank
+		m.setStatusMessage("Sort: stack rank (ADO backlog)", 2*time.Second)
 	default:
 		m.sortMode = sortModeRecent
 		m.setStatusMessage("Sort: recent activity", 2*time.Second)
@@ -1472,6 +1473,8 @@ func (sm sortMode) label() string {
 	switch sm {
 	case sortModeRecent:
 		return "recent"
+	case sortModeStackRank:
+		return "stack rank"
 	default:
 		return "project"
 	}
@@ -1485,6 +1488,21 @@ func sortSessions(sessions []session.State, mode sortMode) {
 			if !ti.Equal(tj) {
 				return ti.After(tj)
 			}
+		}
+
+		if mode == sortModeStackRank {
+			si, sj := sessions[i].StackRank, sessions[j].StackRank
+			switch {
+			case si != nil && sj != nil:
+				if *si != *sj {
+					return *si < *sj // ascending: smaller stack rank = top of the backlog
+				}
+			case si != nil:
+				return true // ranked rows sort before un-ranked ones
+			case sj != nil:
+				return false // un-ranked rows sort last
+			}
+			// both nil or equal stack rank → fall through to the deterministic tie-break chain
 		}
 
 		pi := strings.ToLower(displayProjectName(sessions[i]))

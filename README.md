@@ -90,7 +90,7 @@ agent-watch --test-windows-notification
 | `a` / `l` / `p` | Filter view to all / Claude / Copilot sessions |
 | `n` | Toggle Windows notifications on / off |
 | `m` | Mute or unmute Windows notifications for the selected row for the current run |
-| `r` | Toggle sort mode: project (A-Z, default) / recent activity |
+| `r` | Toggle sort mode: stack rank (ADO backlog order, default) / recent activity. Stack rank uses each Symphony work item's `Microsoft.VSTS.Common.StackRank` ascending (top of the backlog first); un-ranked rows and non-Symphony providers fall back to project (A-Z) order and sort last |
 | `e` | Expand all rows |
 | `c` | Collapse all rows |
 | `g` | Go to the session's tmux/psmux window (jumps the active client) |

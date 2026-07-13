@@ -78,6 +78,10 @@ type symphonyKnownRow struct {
 	PhaseSessionId    string            `json:"PhaseSessionId"`
 	CurrentSessionId  string            `json:"CurrentSessionId"`
 	SessionIdsByPhase map[string]string `json:"SessionIdsByPhase"`
+	// StackRank is the ADO Stack Rank (Microsoft.VSTS.Common.StackRank). Pointer so a
+	// snapshot from an older Symphony that never emits the field decodes to nil (not 0)
+	// and the dashboard sorts those rows last instead of first.
+	StackRank *float64 `json:"StackRank"`
 }
 
 type symphonySessionRecord struct {
@@ -224,6 +228,10 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 	state.StartTime = symphonyStartTime(known, running)
 	state.LastUpdate = symphonyLastUpdate(runtimeState, known, running)
 	state.FileModTime = state.LastUpdate
+	if known != nil {
+		// nil (WI has no ADO stack rank, or an older Symphony that never emits it) → sorts last.
+		state.StackRank = known.StackRank
+	}
 
 	p.enrichFromCopilot(&state)
 	if running != nil {

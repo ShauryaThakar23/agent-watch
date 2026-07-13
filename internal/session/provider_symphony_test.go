@@ -311,6 +311,52 @@ func TestDetectAzureDevOpsMCPStatus(t *testing.T) {
 	}
 }
 
+func TestSymphonyProvider_ReadsStackRankAndNilWhenAbsent(t *testing.T) {
+	base := time.Date(2026, 7, 13, 12, 0, 0, 0, time.UTC)
+	root := t.TempDir()
+	statePath := filepath.Join(root, "runtime-state.json")
+	// Row "1" carries StackRank; row "2" omits it entirely (mimics a snapshot from an
+	// older Symphony that never emits the field) and must decode to a nil *float64.
+	runtimeJSON := fmt.Sprintf(`{
+		"GeneratedAt": %q,
+		"OrchestratorPid": 1,
+		"Running": [],
+		"Retrying": [],
+		"Known": [
+			{"IssueId":"1","Identifier":"SCC-1","Title":"ranked","LastPhase":"Planning","Status":"Idle","LastUpdate":%q,"StackRank":875807},
+			{"IssueId":"2","Identifier":"SCC-2","Title":"unranked","LastPhase":"Planning","Status":"Idle","LastUpdate":%q}
+		]
+	}`, base.Format(time.RFC3339Nano), base.Format(time.RFC3339Nano), base.Format(time.RFC3339Nano))
+	if err := os.WriteFile(statePath, []byte(runtimeJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := NewSymphonyProvider(SymphonyConfig{
+		StatePath:      statePath,
+		WorkspacesRoot: filepath.Join(root, "workspaces"),
+		CopilotDir:     filepath.Join(root, ".copilot"),
+	})
+
+	ranked, err := provider.LoadSession(statePath+"#1", State{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ranked.StackRank == nil {
+		t.Fatalf("expected StackRank to be set for ranked row, got nil")
+	}
+	if *ranked.StackRank != 875807 {
+		t.Fatalf("StackRank: got %v, want 875807", *ranked.StackRank)
+	}
+
+	unranked, err := provider.LoadSession(statePath+"#2", State{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if unranked.StackRank != nil {
+		t.Fatalf("expected nil StackRank for row without the field, got %v", *unranked.StackRank)
+	}
+}
+
 func writeCopilotSession(t *testing.T, copilotDir, sessionID, cwd string, base time.Time) {
 	t.Helper()
 	sessionDir := filepath.Join(copilotDir, "session-state", sessionID)

@@ -270,6 +270,87 @@ func TestSortSessions_RecentActivity(t *testing.T) {
 	}
 }
 
+func TestRender_DefaultSortByStackRank(t *testing.T) {
+	now := time.Now()
+	sessions := []session.State{
+		{Provider: "symphony", ProjectName: "rank-high-300", PID: 10, Status: session.StatusIdle, LastUpdate: now, StackRank: f64Ptr(300)},
+		{Provider: "symphony", ProjectName: "no-rank", PID: 20, Status: session.StatusIdle, LastUpdate: now},
+		{Provider: "symphony", ProjectName: "rank-low-100", PID: 30, Status: session.StatusIdle, LastUpdate: now, StackRank: f64Ptr(100)},
+	}
+
+	output := Render(sessions, false)
+
+	lowIdx := strings.Index(output, "rank-low-100")
+	highIdx := strings.Index(output, "rank-high-300")
+	noRankIdx := strings.Index(output, "no-rank")
+
+	if lowIdx == -1 || highIdx == -1 || noRankIdx == -1 {
+		t.Fatalf("expected all rows rendered, got low=%d high=%d none=%d", lowIdx, highIdx, noRankIdx)
+	}
+	// Default sort is stack rank ascending, un-ranked last: low(100) < high(300) < no-rank(nil).
+	if !(lowIdx < highIdx && highIdx < noRankIdx) {
+		t.Fatalf("default render should order by stack rank asc (nil last): low=%d high=%d none=%d", lowIdx, highIdx, noRankIdx)
+	}
+}
+
+func f64Ptr(v float64) *float64 { return &v }
+
+func TestSortSessions_StackRankAscendingNilLast(t *testing.T) {
+	sessions := []session.State{
+		{ProjectName: "zzz", PID: 10, StackRank: f64Ptr(300)},
+		{ProjectName: "aaa", PID: 20},                          // nil → last despite A-Z name
+		{ProjectName: "yyy", PID: 30, StackRank: f64Ptr(100)},  // smallest rank → first
+		{ProjectName: "bbb", PID: 40},                          // nil → last
+		{ProjectName: "xxx", PID: 50, StackRank: f64Ptr(200)},
+	}
+
+	sortSessions(sessions, sortModeStackRank)
+
+	// Ranked rows ascending (100, 200, 300), then un-ranked rows by project A-Z (aaa, bbb).
+	want := []string{"yyy", "xxx", "zzz", "aaa", "bbb"}
+	for i, w := range want {
+		if sessions[i].ProjectName != w {
+			t.Fatalf("stack rank order[%d]: got %q, want %q (full: %#v)", i, sessions[i].ProjectName, w, sessions)
+		}
+	}
+}
+
+func TestSortSessions_StackRankTiesAreDeterministic(t *testing.T) {
+	// Equal stack ranks must fall through to the project A-Z → PID tie-break chain.
+	sessions := []session.State{
+		{ProjectName: "proj-b", PID: 200, StackRank: f64Ptr(500)},
+		{ProjectName: "proj-a", PID: 100, StackRank: f64Ptr(500)},
+	}
+
+	sortSessions(sessions, sortModeStackRank)
+
+	if sessions[0].ProjectName != "proj-a" || sessions[1].ProjectName != "proj-b" {
+		t.Fatalf("equal stack ranks should tie-break by project A-Z, got %#v", sessions)
+	}
+}
+
+func TestUpdate_ToggleSortModeStackRankRecent(t *testing.T) {
+	m := Model{
+		sessions:       []session.State{{ProjectName: "alpha", PID: 100, Status: session.StatusIdle}},
+		sortMode:       sortModeStackRank,
+		providerFilter: "all",
+		expanded:       make(map[int]bool),
+		killing:        make(map[int]bool),
+		marked:         make(map[int]bool),
+		termW:          120,
+		termH:          40,
+	}
+
+	m = pressRune(m, 'r')
+	if m.sortMode != sortModeRecent {
+		t.Fatalf("expected stack rank → recent, got %q", m.sortMode)
+	}
+	m = pressRune(m, 'r')
+	if m.sortMode != sortModeStackRank {
+		t.Fatalf("expected recent → stack rank, got %q", m.sortMode)
+	}
+}
+
 // TestRenderRow_NeverWraps guards against the "long value pushes a column onto
 // a second line" regression. No matter how long the tmux session, project, or
 // action text is — and no matter how narrow the terminal — a rendered row must

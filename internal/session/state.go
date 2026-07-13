@@ -57,6 +57,11 @@ type State struct {
 	FileOffset           int64
 	FileModTime          time.Time
 
+	// StackRank is the ADO Stack Rank for Symphony work items (nil for non-symphony
+	// providers and for symphony rows whose WI has no stack rank). Used as the default
+	// dashboard sort key (ascending; nil sorts last).
+	StackRank *float64
+
 	// Cached from last record for re-deriving status after PID changes
 	LastRecordType           string
 	LastRecordSubtype        string // e.g. "turn_duration" for system records
