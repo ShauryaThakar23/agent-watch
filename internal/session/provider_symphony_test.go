@@ -9,6 +9,68 @@ import (
 	"time"
 )
 
+// TestSymphonyProvider_SurfacesWorkItemUrlAndActivePRs verifies the snapshot's
+// WorkItemUrl and LinkedPrs decode onto State, and that only active PRs are surfaced.
+func TestSymphonyProvider_SurfacesWorkItemUrlAndActivePRs(t *testing.T) {
+	base := time.Date(2026, 7, 13, 19, 0, 0, 0, time.UTC)
+	root := t.TempDir()
+	statePath := filepath.Join(root, "runtime-state.json")
+	sessionsPath := filepath.Join(root, "symphony-sessions.log")
+	copilotDir := filepath.Join(root, ".copilot")
+	workspacesRoot := filepath.Join(root, "workspaces")
+
+	runtimeJSON := fmt.Sprintf(`{
+		"GeneratedAt": %q,
+		"OrchestratorPid": 123,
+		"Running": [],
+		"Retrying": [],
+		"Known": [{
+			"IssueId": "4620455",
+			"Identifier": "SCC-4620455",
+			"Title": "open PRs",
+			"LastPhase": "Validating",
+			"Status": "Idle",
+			"LastUpdate": %q,
+			"SessionIdsByPhase": {},
+			"WorkItemUrl": "https://dev.azure.com/skype/SCC/_workitems/edit/4620455",
+			"LinkedPrs": [
+				{"PullRequestId": 111, "Url": "https://dev.azure.com/skype/SCC/_git/repo/pullrequest/111", "IsActive": true, "IsDraft": false, "Title": "a"},
+				{"PullRequestId": 222, "Url": "https://dev.azure.com/skype/SCC/_git/repo/pullrequest/222", "IsActive": false, "IsDraft": false, "Title": "abandoned"}
+			]
+		}]
+	}`, base.Format(time.RFC3339Nano), base.Format(time.RFC3339Nano))
+	if err := os.WriteFile(statePath, []byte(runtimeJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(sessionsPath, []byte(""), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	provider := NewSymphonyProvider(SymphonyConfig{
+		StatePath:      statePath,
+		SessionsPath:   sessionsPath,
+		WorkspacesRoot: workspacesRoot,
+		CopilotDir:     copilotDir,
+	})
+	paths, err := provider.Discover()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 {
+		t.Fatalf("expected 1 row, got %v", paths)
+	}
+	state, err := provider.LoadSession(paths[0], State{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.WorkItemURL != "https://dev.azure.com/skype/SCC/_workitems/edit/4620455" {
+		t.Fatalf("WorkItemURL: got %q", state.WorkItemURL)
+	}
+	if len(state.LinkedPRURLs) != 1 || state.LinkedPRURLs[0] != "https://dev.azure.com/skype/SCC/_git/repo/pullrequest/111" {
+		t.Fatalf("LinkedPRURLs should contain only the active PR, got %v", state.LinkedPRURLs)
+	}
+}
+
 func TestSymphonyProvider_LoadsRuntimeRowsAndPrefersCurrentPhaseSession(t *testing.T) {
 	base := time.Date(2026, 6, 22, 19, 0, 0, 0, time.UTC)
 	root := t.TempDir()

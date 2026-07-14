@@ -838,6 +838,57 @@ func manySessions(n int) []session.State {
 	return sessions
 }
 
+// TestOpenWorkItemAndPRKeys verifies the 'o' (open work item) and 'b' (open active
+// PRs) shortcuts launch the right URLs and no-op safely when a row has none.
+func TestOpenWorkItemAndPRKeys(t *testing.T) {
+	orig := openURL
+	defer func() { openURL = orig }()
+	var opened []string
+	openURL = func(u string) error { opened = append(opened, u); return nil }
+
+	newModel := func(s session.State) Model {
+		return Model{
+			sessions:       []session.State{s},
+			providerFilter: "all",
+			expanded:       make(map[int]bool),
+			killing:        make(map[int]bool),
+			marked:         make(map[int]bool),
+			termW:          120,
+			termH:          40,
+		}
+	}
+
+	opened = nil
+	m := pressRune(newModel(session.State{ProjectName: "wi", PID: 1, WorkItemURL: "https://ado/wi/1"}), 'o')
+	if len(opened) != 1 || opened[0] != "https://ado/wi/1" {
+		t.Fatalf("expected work item URL opened, got %v", opened)
+	}
+
+	opened = nil
+	m = pressRune(newModel(session.State{ProjectName: "wi", PID: 1}), 'o')
+	if len(opened) != 0 {
+		t.Fatalf("expected no open for empty WorkItemURL, got %v", opened)
+	}
+	if m.statusMsg == "" {
+		t.Fatal("expected a status message for missing work item URL")
+	}
+
+	opened = nil
+	m = pressRune(newModel(session.State{ProjectName: "wi", PID: 1, LinkedPRURLs: []string{"https://ado/pr/1", "https://ado/pr/2"}}), 'b')
+	if len(opened) != 2 || opened[0] != "https://ado/pr/1" || opened[1] != "https://ado/pr/2" {
+		t.Fatalf("expected both PR URLs opened, got %v", opened)
+	}
+
+	opened = nil
+	m = pressRune(newModel(session.State{ProjectName: "wi", PID: 1}), 'b')
+	if len(opened) != 0 {
+		t.Fatalf("expected no open for empty LinkedPRURLs, got %v", opened)
+	}
+	if m.statusMsg == "" {
+		t.Fatal("expected a status message for missing PRs")
+	}
+}
+
 func pressKey(m Model, t tea.KeyType) Model {
 	updated, _ := m.Update(tea.KeyMsg{Type: t})
 	return updated.(Model)

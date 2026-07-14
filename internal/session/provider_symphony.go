@@ -82,6 +82,20 @@ type symphonyKnownRow struct {
 	// snapshot from an older Symphony that never emits the field decodes to nil (not 0)
 	// and the dashboard sorts those rows last instead of first.
 	StackRank *float64 `json:"StackRank"`
+	// WorkItemUrl is the ADO work item deep link, emitted by Symphony's snapshot.
+	WorkItemUrl string `json:"WorkItemUrl"`
+	// LinkedPrs are the work item's linked PRs as of the last dispatch that fetched
+	// their statuses. Only IsActive ones are surfaced to the dashboard.
+	LinkedPrs []symphonyLinkedPr `json:"LinkedPrs"`
+}
+
+// symphonyLinkedPr mirrors Symphony's LinkedPrInfo snapshot record.
+type symphonyLinkedPr struct {
+	PullRequestId int    `json:"PullRequestId"`
+	Url           string `json:"Url"`
+	IsActive      bool   `json:"IsActive"`
+	IsDraft       bool   `json:"IsDraft"`
+	Title         string `json:"Title"`
 }
 
 type symphonySessionRecord struct {
@@ -231,6 +245,15 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 	if known != nil {
 		// nil (WI has no ADO stack rank, or an older Symphony that never emits it) → sorts last.
 		state.StackRank = known.StackRank
+		// Deep link + active PR URLs for the dashboard's open shortcuts. Missing JSON
+		// fields decode to "" / nil, so both stay safely empty for older snapshots.
+		state.WorkItemURL = known.WorkItemUrl
+		state.LinkedPRURLs = nil
+		for _, pr := range known.LinkedPrs {
+			if pr.IsActive && strings.TrimSpace(pr.Url) != "" {
+				state.LinkedPRURLs = append(state.LinkedPRURLs, pr.Url)
+			}
+		}
 	}
 
 	p.enrichFromCopilot(&state)

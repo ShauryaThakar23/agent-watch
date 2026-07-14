@@ -62,6 +62,13 @@ type State struct {
 	// dashboard sort key (ascending; nil sorts last).
 	StackRank *float64
 
+	// WorkItemURL is the ADO work item deep link for Symphony rows (empty for other
+	// providers or rows without one). Opened by the dashboard's "open work item" shortcut.
+	WorkItemURL string
+	// LinkedPRURLs are the web URLs of the row's active linked PRs (nil for other
+	// providers or rows with none). Opened by the dashboard's "open active PRs" shortcut.
+	LinkedPRURLs []string
+
 	// Cached from last record for re-deriving status after PID changes
 	LastRecordType           string
 	LastRecordSubtype        string // e.g. "turn_duration" for system records

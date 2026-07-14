@@ -500,6 +500,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.statusExp = time.Now().Add(5 * time.Second)
 				}
 			}
+		case "o", "O":
+			if m.cursorIdx < len(m.sessions) {
+				s := m.sessions[m.cursorIdx]
+				if strings.TrimSpace(s.WorkItemURL) == "" {
+					m.setStatusMessage("No work item URL for this row", 3*time.Second)
+				} else if err := openURL(s.WorkItemURL); err != nil {
+					m.setStatusMessage(fmt.Sprintf("Failed to open work item: %v", err), 5*time.Second)
+				} else {
+					m.setStatusMessage("Opened work item in browser", 3*time.Second)
+				}
+			}
+		case "b", "B":
+			if m.cursorIdx < len(m.sessions) {
+				s := m.sessions[m.cursorIdx]
+				if len(s.LinkedPRURLs) == 0 {
+					m.setStatusMessage("No active linked PRs for this row", 3*time.Second)
+				} else {
+					opened, failed := 0, 0
+					for _, u := range s.LinkedPRURLs {
+						if err := openURL(u); err != nil {
+							failed++
+						} else {
+							opened++
+						}
+					}
+					if failed > 0 {
+						m.setStatusMessage(fmt.Sprintf("Opened %d PR(s), %d failed", opened, failed), 5*time.Second)
+					} else {
+						m.setStatusMessage(fmt.Sprintf("Opened %d active PR(s) in browser", opened), 3*time.Second)
+					}
+				}
+			}
 		case "x", "X":
 			if m.cursorIdx < len(m.sessions) {
 				s := m.sessions[m.cursorIdx]
@@ -634,6 +666,8 @@ func (m Model) layout(now time.Time) (top, body, footer []string, spans []rowSpa
 					helpKeyStyle.Render("v")+helpTextStyle.Render(" Select All  ")+
 					helpKeyStyle.Render("s")+helpTextStyle.Render(" Broadcast  ")+
 					helpKeyStyle.Render("g")+helpTextStyle.Render(" Go to Window  ")+
+					helpKeyStyle.Render("o")+helpTextStyle.Render(" Open WI  ")+
+					helpKeyStyle.Render("b")+helpTextStyle.Render(" Open PRs  ")+
 					m.notificationHelp()+
 					helpKeyStyle.Render("a/l/p")+helpTextStyle.Render(" Filter  ")+
 					helpKeyStyle.Render("r")+helpTextStyle.Render(" Sort  ")+
@@ -1539,6 +1573,25 @@ func killProcess(pid int) error {
 		return err
 	}
 	return proc.Kill()
+}
+
+// openURL launches the given URL in the user's default browser. It is a package
+// var so tests can stub it without spawning a real browser. Best-effort and
+// cross-platform; the caller surfaces any error in the status bar.
+var openURL = func(rawURL string) error {
+	if strings.TrimSpace(rawURL) == "" {
+		return fmt.Errorf("no URL to open")
+	}
+	switch runtime.GOOS {
+	case "windows":
+		// The empty "" is start's window-title argument, so a URL containing spaces
+		// or special characters is not misread as the window title.
+		return exec.Command("cmd", "/c", "start", "", rawURL).Start()
+	case "darwin":
+		return exec.Command("open", rawURL).Start()
+	default:
+		return exec.Command("xdg-open", rawURL).Start()
+	}
 }
 
 func openSessionInNewTerminal(s session.State) error {
