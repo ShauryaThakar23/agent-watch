@@ -503,6 +503,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "o", "O":
 			if m.cursorIdx < len(m.sessions) {
 				s := m.sessions[m.cursorIdx]
+				udbg("key=o row=%d provider=%s project=%q workItemURL=%q linkedPRURLs=%d",
+					m.cursorIdx, s.Provider, s.ProjectName, s.WorkItemURL, len(s.LinkedPRURLs))
 				if strings.TrimSpace(s.WorkItemURL) == "" {
 					m.setStatusMessage("No work item URL for this row", 3*time.Second)
 				} else if err := openURL(s.WorkItemURL); err != nil {
@@ -514,6 +516,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "b", "B":
 			if m.cursorIdx < len(m.sessions) {
 				s := m.sessions[m.cursorIdx]
+				udbg("key=b row=%d provider=%s project=%q linkedPRURLs=%d urls=%v",
+					m.cursorIdx, s.Provider, s.ProjectName, len(s.LinkedPRURLs), s.LinkedPRURLs)
 				if len(s.LinkedPRURLs) == 0 {
 					m.setStatusMessage("No active linked PRs for this row", 3*time.Second)
 				} else {

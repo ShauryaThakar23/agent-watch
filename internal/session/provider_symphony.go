@@ -254,6 +254,10 @@ func (p *symphonyProvider) loadWorkItem(path string, current State) (State, erro
 				state.LinkedPRURLs = append(state.LinkedPRURLs, pr.Url)
 			}
 		}
+		sdbg("loadWorkItem: issue=%s -> state.WorkItemURL=%q state.LinkedPRURLs=%d (from %d linkedPrs)",
+			issueID, state.WorkItemURL, len(state.LinkedPRURLs), len(known.LinkedPrs))
+	} else {
+		sdbg("loadWorkItem: issue=%s has NO matching Known row in runtime-state.json — o/b will be empty", issueID)
 	}
 
 	p.enrichFromCopilot(&state)
@@ -333,10 +337,60 @@ func (p *symphonyProvider) readRuntimeState() (symphonyRuntimeState, error) {
 	var state symphonyRuntimeState
 	data, err := os.ReadFile(p.cfg.StatePath)
 	if err != nil {
+		sdbg("readRuntimeState: ReadFile(%q) FAILED: %v", p.cfg.StatePath, err)
 		return state, err
 	}
+	if symphonyDebugEnabled {
+		mtime := "?"
+		if fi, statErr := os.Stat(p.cfg.StatePath); statErr == nil {
+			mtime = fi.ModTime().Format(time.RFC3339Nano)
+		}
+		// Report the raw top-level shape so we can see whether TeamsWatcher is
+		// present/bloating the shared file and whether Known was published empty.
+		var raw map[string]json.RawMessage
+		twPresent, twBytes := false, 0
+		if uErr := json.Unmarshal(data, &raw); uErr == nil {
+			if tw, ok := raw["TeamsWatcher"]; ok && len(tw) > 0 && string(tw) != "null" {
+				twPresent, twBytes = true, len(tw)
+			}
+		}
+		keys := make([]string, 0, len(raw))
+		for k := range raw {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		sdbg("readRuntimeState: path=%q bytes=%d mtime=%s topLevelKeys=%v teamsWatcherPresent=%t teamsWatcherBytes=%d",
+			p.cfg.StatePath, len(data), mtime, keys, twPresent, twBytes)
+	}
 	if err := json.Unmarshal(data, &state); err != nil {
+		sdbg("readRuntimeState: json.Unmarshal FAILED: %v (first 200 bytes: %.200s)", err, string(data))
 		return state, err
+	}
+	if symphonyDebugEnabled {
+		sdbg("readRuntimeState: parsed OrchestratorPid=%d generatedAt=%s known=%d running=%d retrying=%d",
+			state.OrchestratorPid, state.GeneratedAt.Format(time.RFC3339Nano),
+			len(state.Known), len(state.Running), len(state.Retrying))
+		// MakeTeamsOnlySnapshot() publishes a PID but an EMPTY Known list — the
+		// signature of a --mode=teams-watcher (no ado) process clobbering the
+		// shared ~/.symphony/runtime-state.json. Flag it loudly.
+		if state.OrchestratorPid != 0 && len(state.Known) == 0 {
+			sdbg("readRuntimeState: *** EMPTY Known with live PID=%d — looks like a teams-watcher-only snapshot; o/b shortcuts will have no rows/PRs ***", state.OrchestratorPid)
+		}
+		for i := range state.Known {
+			k := &state.Known[i]
+			activePrs := 0
+			for _, pr := range k.LinkedPrs {
+				if pr.IsActive && strings.TrimSpace(pr.Url) != "" {
+					activePrs++
+				}
+			}
+			sdbg("readRuntimeState: known[%d] issue=%s status=%s workItemUrl=%q linkedPrs=%d activeWithUrl=%d",
+				i, k.IssueId, k.Status, k.WorkItemUrl, len(k.LinkedPrs), activePrs)
+			for j, pr := range k.LinkedPrs {
+				sdbg("readRuntimeState:   known[%d].pr[%d] id=%d isActive=%t isDraft=%t urlEmpty=%t url=%q",
+					i, j, pr.PullRequestId, pr.IsActive, pr.IsDraft, strings.TrimSpace(pr.Url) == "", pr.Url)
+			}
+		}
 	}
 	return state, nil
 }
