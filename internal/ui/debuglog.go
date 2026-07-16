@@ -4,21 +4,15 @@
 
 package ui
 
-import (
-	"log"
-	"os"
-)
+import "log"
 
-// uiDebugEnabled turns on verbose dashboard-shortcut diagnostics. Opt-in via
-// AGENT_WATCH_DEBUG=1 so normal builds stay quiet. Output goes to the standard
-// logger, which main.redirectLog() points at the agent-watch.log file.
-var uiDebugEnabled = os.Getenv("AGENT_WATCH_DEBUG") != ""
+// Dashboard-shortcut diagnostics are ALWAYS ON. Output goes to the standard
+// logger, which main.redirectLog() points at <UserCacheDir>/agent-watch/
+// agent-watch.log (never the alt-screen). The o/b handlers fire only on a
+// keypress, so this is low volume and safe to ship enabled by default — users
+// running Symphony from master capture it with no extra flags.
 
-// udbg writes a "[ui-debug]" line to the redirected file logger when
-// AGENT_WATCH_DEBUG is set; otherwise it is a no-op.
+// udbg writes an unconditional "[ui-debug]" line to the redirected file logger.
 func udbg(format string, args ...any) {
-	if !uiDebugEnabled {
-		return
-	}
 	log.Printf("[ui-debug] "+format, args...)
 }

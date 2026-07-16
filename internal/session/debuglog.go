@@ -6,20 +6,39 @@ package session
 
 import (
 	"log"
-	"os"
+	"sync"
 )
 
-// symphonyDebugEnabled turns on verbose Symphony read-path diagnostics. It is
-// opt-in via AGENT_WATCH_DEBUG=1 so a normal build (including one shipped to
-// master) stays quiet. When enabled, messages go to the standard logger, which
-// main.redirectLog() points at <UserCacheDir>/agent-watch/agent-watch.log.
-var symphonyDebugEnabled = os.Getenv("AGENT_WATCH_DEBUG") != ""
+// Symphony read-path diagnostics are ALWAYS ON. They are written via the
+// standard logger, which main.redirectLog() points at the file
+// <UserCacheDir>/agent-watch/agent-watch.log — never stdout/stderr, so they do
+// not corrupt the Bubble Tea alt-screen. This lets anyone running Symphony from
+// master reproduce the o/b shortcut issue and share the log with no extra flags
+// or env vars.
 
-// sdbg writes a "[symphony-debug]" line to the redirected file logger when
-// AGENT_WATCH_DEBUG is set; otherwise it is a no-op.
+// sdbg writes an unconditional "[symphony-debug]" line to the redirected file
+// logger.
 func sdbg(format string, args ...any) {
-	if !symphonyDebugEnabled {
-		return
-	}
 	log.Printf("[symphony-debug] "+format, args...)
 }
+
+// sdbgStateChanged reports whether signature differs from the previously seen
+// one, updating the stored value. readRuntimeState runs on every ~1s dashboard
+// tick, so callers use this to emit their (multi-line) verbose block only when
+// the parsed state actually changes — collapsing identical consecutive ticks
+// into one entry while still capturing every transition.
+func sdbgStateChanged(signature string) bool {
+	lastSignatureMu.Lock()
+	defer lastSignatureMu.Unlock()
+	if signature == lastSignature {
+		return false
+	}
+	lastSignature = signature
+	return true
+}
+
+var (
+	lastSignatureMu sync.Mutex
+	lastSignature   string
+)
+

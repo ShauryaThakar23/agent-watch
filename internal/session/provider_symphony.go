@@ -340,33 +340,43 @@ func (p *symphonyProvider) readRuntimeState() (symphonyRuntimeState, error) {
 		sdbg("readRuntimeState: ReadFile(%q) FAILED: %v", p.cfg.StatePath, err)
 		return state, err
 	}
-	if symphonyDebugEnabled {
-		mtime := "?"
-		if fi, statErr := os.Stat(p.cfg.StatePath); statErr == nil {
-			mtime = fi.ModTime().Format(time.RFC3339Nano)
-		}
-		// Report the raw top-level shape so we can see whether TeamsWatcher is
-		// present/bloating the shared file and whether Known was published empty.
-		var raw map[string]json.RawMessage
-		twPresent, twBytes := false, 0
-		if uErr := json.Unmarshal(data, &raw); uErr == nil {
-			if tw, ok := raw["TeamsWatcher"]; ok && len(tw) > 0 && string(tw) != "null" {
-				twPresent, twBytes = true, len(tw)
-			}
-		}
-		keys := make([]string, 0, len(raw))
-		for k := range raw {
-			keys = append(keys, k)
-		}
-		sort.Strings(keys)
-		sdbg("readRuntimeState: path=%q bytes=%d mtime=%s topLevelKeys=%v teamsWatcherPresent=%t teamsWatcherBytes=%d",
-			p.cfg.StatePath, len(data), mtime, keys, twPresent, twBytes)
+	mtime := "?"
+	if fi, statErr := os.Stat(p.cfg.StatePath); statErr == nil {
+		mtime = fi.ModTime().Format(time.RFC3339Nano)
 	}
+	// Report the raw top-level shape so we can see whether TeamsWatcher is
+	// present/bloating the shared file and whether Known was published empty.
+	var raw map[string]json.RawMessage
+	twPresent, twBytes := false, 0
+	if uErr := json.Unmarshal(data, &raw); uErr == nil {
+		if tw, ok := raw["TeamsWatcher"]; ok && len(tw) > 0 && string(tw) != "null" {
+			twPresent, twBytes = true, len(tw)
+		}
+	}
+	keys := make([]string, 0, len(raw))
+	for k := range raw {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
 	if err := json.Unmarshal(data, &state); err != nil {
 		sdbg("readRuntimeState: json.Unmarshal FAILED: %v (first 200 bytes: %.200s)", err, string(data))
 		return state, err
 	}
-	if symphonyDebugEnabled {
+	// Emit the verbose block only when the parsed state changes (this runs every
+	// ~1s tick). The signature covers everything the o/b shortcuts depend on.
+	var sig strings.Builder
+	fmt.Fprintf(&sig, "%s|%d|%d|%t|%d|%d|%d|%d", p.cfg.StatePath, len(data), state.OrchestratorPid,
+		twPresent, twBytes, len(state.Known), len(state.Running), len(state.Retrying))
+	for i := range state.Known {
+		k := &state.Known[i]
+		fmt.Fprintf(&sig, "||%s:%s:%s:%d", k.IssueId, k.Status, k.WorkItemUrl, len(k.LinkedPrs))
+		for _, pr := range k.LinkedPrs {
+			fmt.Fprintf(&sig, ":%d:%t:%t:%t", pr.PullRequestId, pr.IsActive, pr.IsDraft, strings.TrimSpace(pr.Url) == "")
+		}
+	}
+	if sdbgStateChanged(sig.String()) {
+		sdbg("readRuntimeState: path=%q bytes=%d mtime=%s topLevelKeys=%v teamsWatcherPresent=%t teamsWatcherBytes=%d",
+			p.cfg.StatePath, len(data), mtime, keys, twPresent, twBytes)
 		sdbg("readRuntimeState: parsed OrchestratorPid=%d generatedAt=%s known=%d running=%d retrying=%d",
 			state.OrchestratorPid, state.GeneratedAt.Format(time.RFC3339Nano),
 			len(state.Known), len(state.Running), len(state.Retrying))
