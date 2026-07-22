@@ -1220,6 +1220,10 @@ func displayProjectName(s session.State) string {
 }
 
 func notificationForSession(s session.State) notify.Notification {
+	if strings.EqualFold(s.Provider, "symphony") {
+		return symphonyNotification(s)
+	}
+
 	project := displayProjectName(s)
 	title := fmt.Sprintf("%s completed: %s", providerLabel(s), project)
 	switch s.Status {
@@ -1249,6 +1253,33 @@ func notificationForSession(s session.State) notify.Notification {
 
 	return notify.Notification{
 		Title:   title,
+		Message: message,
+	}
+}
+
+// symphonyNotification builds the completion toast for a Symphony work-item row.
+// Symphony rows repeat the WI title across ProjectName/Prompt/Response, so the
+// generic toast is low-signal. Keep it to the essentials: the WI title as the
+// toast title, and a short "<Phase> done" (or "<Phase> failed") message. More
+// fields (PR, tokens, dispatch count) can be added later via provider wiring.
+func symphonyNotification(s session.State) notify.Notification {
+	title := s.OriginalTask
+	if strings.TrimSpace(title) == "" {
+		title = displayProjectName(s)
+	}
+
+	verb := "done"
+	if s.Status == session.StatusError {
+		verb = "failed"
+	}
+	phase := strings.TrimSpace(s.SymphonyPhase)
+	message := "Symphony " + verb
+	if phase != "" {
+		message = fmt.Sprintf("Symphony: %s %s", phase, verb)
+	}
+
+	return notify.Notification{
+		Title:   truncateNotificationLine(title, 100),
 		Message: message,
 	}
 }

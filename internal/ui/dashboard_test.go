@@ -593,6 +593,71 @@ func TestProcessNotifications_TerminalTransitionSendsNotification(t *testing.T) 
 	}
 }
 
+func TestSymphonyNotification_TitleAndPhaseDoneMessage(t *testing.T) {
+	cases := []struct {
+		name        string
+		state       session.State
+		wantTitle   string
+		wantMessage string
+	}{
+		{
+			name: "phase done",
+			state: session.State{
+				Provider:      "symphony",
+				OriginalTask:  "add a re-validate command",
+				SymphonyPhase: "Implementing",
+				Status:        session.StatusDone,
+			},
+			wantTitle:   "add a re-validate command",
+			wantMessage: "Symphony: Implementing done",
+		},
+		{
+			name: "phase failed on error",
+			state: session.State{
+				Provider:      "symphony",
+				OriginalTask:  "add a re-validate command",
+				SymphonyPhase: "Validating",
+				Status:        session.StatusError,
+			},
+			wantTitle:   "add a re-validate command",
+			wantMessage: "Symphony: Validating failed",
+		},
+		{
+			name: "no phase falls back",
+			state: session.State{
+				Provider:     "symphony",
+				OriginalTask: "add a re-validate command",
+				Status:       session.StatusIdle,
+			},
+			wantTitle:   "add a re-validate command",
+			wantMessage: "Symphony done",
+		},
+		{
+			name: "empty title falls back to project name",
+			state: session.State{
+				Provider:      "symphony",
+				ProjectName:   "SCC-4613894",
+				SymphonyPhase: "Reviewing",
+				Status:        session.StatusDone,
+			},
+			wantTitle:   "SCC-4613894",
+			wantMessage: "Symphony: Reviewing done",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			n := notificationForSession(tc.state)
+			if n.Title != tc.wantTitle {
+				t.Fatalf("title: got %q, want %q", n.Title, tc.wantTitle)
+			}
+			if n.Message != tc.wantMessage {
+				t.Fatalf("message: got %q, want %q", n.Message, tc.wantMessage)
+			}
+		})
+	}
+}
+
 func TestProcessNotifications_GlobalDisableSuppressesNotification(t *testing.T) {
 	notifier := &fakeNotifier{supported: true}
 	now := time.Now()
