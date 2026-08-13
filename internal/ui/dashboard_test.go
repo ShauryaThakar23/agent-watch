@@ -1286,7 +1286,7 @@ func TestWindowsTerminalResumeCommand_UsesSessionIdAndCwd(t *testing.T) {
 		"--plugin-dir " + filepath.Join(root, "copilot", "plugins", "rtc-infra-dev"),
 		"--plugin-dir " + filepath.Join(root, "copilot", "plugins", "rtc-infra-livesite"),
 		"--plugin-dir " + filepath.Join(root, "copilot", "plugins", "rtc-infra-essentials"),
-		"--mcp ado --yolo --resume=abc-123",
+		"--mcp ado --hub --yolo --resume=abc-123",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
@@ -1302,7 +1302,7 @@ func TestWindowsTerminalResumeCommand_FallsBackToCmdStart(t *testing.T) {
 		t.Fatalf("expected cmd.exe, got %q", name)
 	}
 	got := strings.Join(args, " ")
-	for _, want := range []string{"start", "/D .", "agency copilot --mcp ado --yolo --resume=abc-123"} {
+	for _, want := range []string{"start", "/D .", "agency copilot --mcp ado --hub --yolo --resume=abc-123"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("expected %q in args %q", want, got)
 		}
@@ -1314,7 +1314,7 @@ func TestWindowsTerminalResumeCommand_NonSymphonyKeepsRawResume(t *testing.T) {
 
 	_, args := windowsTerminalResumeCommand(s, true)
 	got := strings.Join(args, " ")
-	if !strings.Contains(got, "agency copilot -- --yolo --resume abc-123") {
+	if !strings.Contains(got, "agency copilot --hub -- --yolo --resume abc-123") {
 		t.Fatalf("expected raw resume command in args %q", got)
 	}
 	if strings.Contains(got, "--mcp") {

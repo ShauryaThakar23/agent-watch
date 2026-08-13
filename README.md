@@ -117,7 +117,7 @@ session, the provider reads `~/.copilot/session-state/<session>/events.jsonl`
 and `inuse.<pid>.lock` to show the current action and enable `g` pane jumps.
 If the selected Symphony session is not inside tmux/psmux, `g` opens a new
 terminal and resumes with
-`agency copilot --mcp ado --yolo --resume=<session-id>`.
+`agency copilot --mcp ado --hub --yolo --resume=<session-id>`.
 Before launching, agent-watch materializes the selected row's phase skill bundle
 from Symphony `WORKFLOW.md` into the workspace `AGENTS.md`, matching Symphony's
 own Copilot dispatch mechanism. It also defaults Agency `--plugin-dir` to the

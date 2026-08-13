@@ -1903,7 +1903,7 @@ func resumeCommandForSession(s session.State) string {
 	if strings.EqualFold(s.Provider, "symphony") {
 		return symphonyResumeCommand(s)
 	}
-	return fmt.Sprintf("agency copilot -- --yolo --resume %s", s.SessionID)
+	return fmt.Sprintf("agency copilot --hub -- --yolo --resume %s", s.SessionID)
 }
 
 func symphonyResumeCommand(s session.State) string {
@@ -1911,7 +1911,7 @@ func symphonyResumeCommand(s session.State) string {
 	for _, dir := range symphonyPluginDirs(s.SymphonyWorkflowPath) {
 		args = append(args, "--plugin-dir", quotePowerShellArg(dir))
 	}
-	args = append(args, "--mcp", "ado", "--yolo", fmt.Sprintf("--resume=%s", s.SessionID))
+	args = append(args, "--mcp", "ado", "--hub", "--yolo", fmt.Sprintf("--resume=%s", s.SessionID))
 	return strings.Join(args, " ")
 }
 
